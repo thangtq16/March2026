@@ -10,26 +10,28 @@ duplexType = "TDD";
 
 %% Configure gNB Node
 gNBPosition = [0 0 30];
-gNB = nrGNB(Position=gNBPosition, TransmitPower=60, SubcarrierSpacing=30000, ...
+gNB = nrGNB(Position=gNBPosition, TransmitPower=25, SubcarrierSpacing=30000, ...
     CarrierFrequency=3.7e9, ChannelBandwidth=100e6, NumTransmitAntennas=32, NumReceiveAntennas=32, ...
-    DuplexMode=duplexType, ReceiveGain=11, SRSPeriodicityUE=20, NumResourceBlocks=273);
+    DuplexMode=duplexType, ReceiveGain=11, SRSPeriodicityUE=5, NumResourceBlocks=273);
 
-csiMeasurementSignalDLType = "SRS";
+csiMeasurementSignalDLType = "CSI-RS";
 
 %% Configure MU-MIMO and Scheduler
-muMIMOConfiguration = struct(MaxNumUsersPaired=4, MaxNumLayers=8, MinNumRBs=1, MinSINR=-6, SemiOrthogonalityFactor=0.1);
+muMIMOConfiguration = struct( ...
+    MaxNumUsersPaired=4, MaxNumLayers=16, MinNumRBs=1, ...
+    MinCQI=7, SemiOrthogonalityFactor=0.5);
 
 muLinkAdaptationConfigDL = struct(InitialOffset = 0);
 
 allocationType = 0;
-configureScheduler(gNB, Scheduler="BestCQI", ResourceAllocationType=allocationType, MaxNumUsersPerTTI=4, ...
+configureScheduler(gNB, Scheduler="ProportionalFair", ResourceAllocationType=allocationType, MaxNumUsersPerTTI=4, ...
     MUMIMOConfigDL=muMIMOConfiguration, CSIMeasurementSignalDL=csiMeasurementSignalDLType, LinkAdaptationConfigDL=muLinkAdaptationConfigDL);
 
 %% Define UE Positions and Deployment
-numUEs = 4;
+numUEs = 10;
 nearFieldLimit = 100;
-% ueRelPosition = [rand(numUEs, 1)*(1000-nearFieldLimit)+nearFieldLimit (rand(numUEs, 1)-0.5)*120 zeros(numUEs, 1)];
-ueRelPosition = [ones(numUEs, 1)*1000 (ones(numUEs, 1)-0.5)*120 zeros(numUEs, 1)];
+ueRelPosition = [rand(numUEs, 1)*(1000-nearFieldLimit)+nearFieldLimit (rand(numUEs, 1)-0.5)*120 zeros(numUEs, 1)];
+% ueRelPosition = [ones(numUEs, 1)*1000 (ones(numUEs, 1)-0.5)*120 zeros(numUEs, 1)];
 [xPos, yPos, zPos] = sph2cart(deg2rad(ueRelPosition(:, 2)), deg2rad(ueRelPosition(:, 3)), ...
     ueRelPosition(:, 1));
 
@@ -63,7 +65,7 @@ view(45,25)
 legend('UEs','gNB','Location','best')
 
 %% Create UE Nodes and Connectivity
-UEs = nrUE(Name=ueNames, Position=uePositions, ReceiveGain=0, NumTransmitAntennas=2, NumReceiveAntennas=2);
+UEs = nrUE(Name=ueNames, Position=uePositions, ReceiveGain=0, NumTransmitAntennas=4, NumReceiveAntennas=4);
 
 connectUE(gNB, UEs, FullBufferTraffic="DL", CSIReportPeriodicity=10)
 
@@ -85,7 +87,7 @@ if enableTraces
     simPhyLogger = helperNRPhyLogger(numFrameSimulation, gNB, UEs);
 end
 
-numMetricPlotUpdates = 200;
+numMetricPlotUpdates = 2000;
 
 metricsVisualizer = helperNRMetricsVisualizer(gNB, UEs, RefreshRate=numMetricPlotUpdates, ...
     PlotSchedulerMetrics=true, PlotPhyMetrics=false, PlotCDFMetrics=true, LinkDirection=0);
