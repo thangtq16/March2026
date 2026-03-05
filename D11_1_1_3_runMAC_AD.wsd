@@ -1,0 +1,65 @@
+@startuml gNBMAC_run_Activity
+skinparam monochrome true
+start
+
+:Call run(obj, currentTime, packets);
+:Calculate elapsedTime = currentTime - obj.LastRunTime;
+
+if (currentTime > obj.LastRunTime?) then (Yes)
+    :Update LCP timers;
+    :Calculate and update CurrFrame, CurrSlot, CurrSymbol;
+    if (DuplexMode is TDD?) then (Yes)
+        :Update CurrDLULSlotIndex;
+    else (No)
+    endif
+    :Update TimestampInfo;
+else (No)
+endif
+
+:controlRx(obj, packets)\n(Receive and process control packets);
+
+:Calculate symNumFrame;
+
+if (PreviousSymbol == symNumFrame AND\nelapsedTime < SymbolDuration?) then (Yes)
+    note right: Avoid running MAC operations\nmore than once in the same symbol
+    :nextInvokeTime = getNextInvokeTime();
+    stop
+else (No)
+endif
+
+:dataTx(obj)\n(Send data Tx request & MAC PDUs to PHY);
+
+:dataRx(obj)\n(Send data Rx request to PHY);
+
+if (currentTime == obj.SchedulerNextInvokeTime?) then (Yes)
+    note right: Slot boundary reached
+    :resourceAssignmentsUL = runULScheduler(obj);
+    :resourceAssignmentsDL = runDLScheduler(obj);
+    
+    if (Assignments exist?) then (Yes)
+        :controlTx(obj, ...)\n(Send assignments to UEs);
+    else (No)
+    endif
+    :Update SchedulerNextInvokeTime;
+else (No)
+endif
+
+if (Is it time for CSI-RS Tx?) then (Yes)
+    :dlControlRequest(obj);
+    :Update next CSI-RS Tx times;
+else (No)
+endif
+
+if (Is it time for SRS Rx?) then (Yes)
+    :ulControlRequest(obj);
+    :Update next SRS Rx times;
+else (No)
+endif
+
+:Update obj.PreviousSymbol = symNumFrame;
+
+:nextInvokeTime = getNextInvokeTime(obj, currentTime);
+
+:Return nextInvokeTime;
+stop
+@enduml

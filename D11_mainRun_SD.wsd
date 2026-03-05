@@ -1,0 +1,44 @@
+@startuml run_Simulator_Sequence
+skinparam monochrome true
+
+actor Caller
+participant "Simulator\n(wirelessNetworkSimulator)" as Simulator
+participant "Node\n(Nodes{nodeIdx})" as Node
+
+Caller -> Simulator: run(simulationDuration)
+activate Simulator
+
+Simulator -> Simulator: Validate arguments & round duration
+Simulator -> Simulator: Check ResetRequired state
+Simulator -> Simulator: Initialize EndTime, Flags, and lastRunTime = 0
+
+loop While CurrentTime <= simulationDuration
+    
+    loop For nodeIdx = 1 to NumNodes
+        Simulator -> Simulator: Check if node is ready to run\n(NodeNextInvokeTimes - CurrentTime < 1ns)
+        
+        opt Is Ready
+            Simulator -> Node: run(CurrentTime)
+            activate Node
+            Node --> Simulator: nextInvokeTime
+            deactivate Node
+            Simulator -> Simulator: Update NodeNextInvokeTimes(nodeIdx)
+            Simulator -> Simulator: Mark recentlyRunNodesFlag(nodeIdx) = true
+        end
+    end
+    
+    Simulator -> Simulator: distributePackets(recentlyRanNodesIdx)
+    note right of Simulator: Retrieve packets from Tx nodes\nand distribute to relevant Rx nodes
+    
+    Simulator -> Simulator: processActions(lastRunTime)
+    note right of Simulator: Execute actions scheduled\nat or before CurrentTime
+    
+    Simulator -> Simulator: nextRunTime = nextInvokeTime()
+    Simulator -> Simulator: Advance CurrentTime to nextRunTime
+end
+
+Simulator -> Simulator: Set CurrentTime = simulationDuration
+
+Simulator --> Caller: Return Control
+deactivate Simulator
+@enduml

@@ -1,0 +1,25 @@
+@startuml runRLCLayer_Activity
+skinparam monochrome true
+start
+
+:Call runRLCLayer(obj, currentTime);
+
+:numRLCEntities = numel(obj.RLCEntity);
+:Initialize nextRLCTime = Inf;
+
+while (For idx = 1 to numRLCEntities?) is (Yes)
+    
+    :nextInvokeTime = run(obj.RLCEntity{idx}, currentTime);
+    note right: Invoke run method of the RLC entity
+    
+    if (nextInvokeTime < nextRLCTime?) then (Yes)
+        :nextRLCTime = nextInvokeTime;
+    else (No)
+    endif
+    
+endwhile (No)
+
+:Return nextRLCTime;
+
+stop
+@enduml

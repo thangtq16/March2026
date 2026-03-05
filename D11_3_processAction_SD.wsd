@@ -1,0 +1,62 @@
+@startuml processActions_Sequence
+skinparam monochrome true
+
+actor "Simulator Run Loop" as Caller
+participant "Simulator\n(obj)" as Sim
+participant "TimeAdvance\nAction" as TA_Action
+participant "Scheduled\nAction" as S_Action
+
+Caller -> Sim: processActions(lastRunTime)
+activate Sim
+
+opt CurrentTime > lastRunTime
+    loop For each TimeAdvanceAction
+        Sim -> TA_Action: CallbackFcn(ActionIdentifier, UserData)
+        activate TA_Action
+        note right of TA_Action: Process time advance actions
+        TA_Action --> Sim: Return
+        deactivate TA_Action
+    end
+end
+
+Sim -> Sim: processRemainingActions()
+activate Sim
+
+loop While actionIdx <= numActions AND InvokeTime <= CurrentTime
+    Sim -> S_Action: CallbackFcn(ActionIdentifier, UserData)
+    activate S_Action
+    note right of S_Action: Process periodic or one-time action.\n(This callback might add new actions)
+    S_Action --> Sim: Return
+    deactivate S_Action
+    
+    alt CallbackPeriodicity ~= Inf (Periodic Action)
+        Sim -> Sim: Calculate next invocation time\n(Current + Periodicity)
+        Sim -> Sim: Update ActionInvokeTime
+        Sim -> Sim: Set sortingRequired = true
+        Sim -> Sim: Increment actionIdx++
+    else One-time Action
+        Sim -> Sim: Remove action from obj.Actions list
+        Sim -> Sim: Update numActions
+        note right of Sim: actionIdx remains same\nas next element shifts to current index
+    end
+end
+
+alt NewActionsAdded == true
+    Sim -> Sim: Reset NewActionsAdded = false
+    Sim -> Sim: sortActions()
+    Sim -> Sim: processRemainingActions()
+    note right of Sim: Recursive call to handle\nnewly added actions immediately
+else NewActionsAdded == false
+    opt sortingRequired == true
+        Sim -> Sim: sortActions()
+        note right of Sim: Re-sort periodic actions\nbased on their new invoke times
+    end
+end
+
+Sim --> Sim: Return from processRemainingActions
+deactivate Sim
+
+Sim --> Caller: Return Control
+deactivate Sim
+
+@enduml

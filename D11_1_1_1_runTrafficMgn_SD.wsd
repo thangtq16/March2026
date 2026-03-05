@@ -1,0 +1,62 @@
+@startuml trafficManager_run_Sequence
+skinparam monochrome true
+
+actor Caller
+participant "TrafficManager\n(obj)" as TM
+participant "TrafficSource\n(obj.TrafficSources{idx})" as Source
+participant "packetTags" as Tags
+participant "Lower Layer\n(SendPacketFcn)" as LowerLayer
+
+Caller -> TM: run(currentTime)
+activate TM
+
+TM -> TM: nextInvokeTime = Inf
+
+loop For idx = 1 to TrafficSourcesCount
+    
+    loop While NextInvokeTime(idx) == currentTime
+        TM -> TM: Get packetInfo & Increment PacketIDCounter
+        
+        TM -> Source: generate()
+        activate Source
+        
+        alt DataAbstraction == true
+            Source --> TM: dt, packetLength
+            TM -> TM: packet = []
+        else DataAbstraction == false
+            Source --> TM: dt, packetLength, packet
+        end
+        deactivate Source
+        
+        TM -> TM: Update packetInfo properties
+        
+        TM -> Tags: add(packetInfo.Tags, "AppTimestamp", ...)
+        activate Tags
+        Tags --> TM: updated Tags
+        deactivate Tags
+        
+        TM -> TM: Update NextInvokeTime(idx) = currentTime + dt
+        
+        alt CustomSendPacketFcnFlag == true
+            TM -> LowerLayer: CustomSendPacketFcn{idx}(packetInfo)
+        else Default Send Function
+            TM -> LowerLayer: SendPacketFcn(packetInfo)
+        end
+        activate LowerLayer
+        note right of LowerLayer: Forward generated traffic\nto RLC/MAC layer
+        LowerLayer --> TM: isPacketQueued
+        deactivate LowerLayer
+        
+        alt isPacketQueued == true
+            TM -> TM: Update Tx Packets & Bytes Statistics
+        else
+            TM -> TM: Update Queue Overflow Statistics
+        end
+    end
+    
+    TM -> TM: Find minimum nextInvokeTime across all sources
+end
+
+TM --> Caller: Return nextInvokeTime
+deactivate TM
+@enduml

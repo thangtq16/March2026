@@ -1,0 +1,53 @@
+@startuml nrUE_Constructor_Activity
+skinparam monochrome true
+start
+
+:Call nrUE() constructor with Name-Value pairs;
+
+if (Are N-V pairs valid?) then (No)
+    :Throw Error (invalidPVPairs);
+    stop
+else (Yes)
+endif
+
+:Validate Inputs (nrNodeValidation.validateUEInputs);
+
+:Search for 'Position' argument to determine\nnumber of UEs to create (numUEs);
+:Search for 'Name' argument;
+
+:Instantiate array of UE objects: obj(1:numUEs);
+
+:Loop through N-V pairs to assign properties;
+fork
+    :Assign 'Position' (row by row for each UE);
+fork again
+    :Assign 'Name' (item by item for each UE);
+fork again
+    :Assign other properties to all UEs\nusing deal();
+end fork
+
+while (For each UE object in array (1 to numUEs)?) is (Yes)
+    :Create WeakReference to UE;
+    
+    :Create Traffic Manager\n(wirelessnetwork.internal.trafficManager);
+    
+    :Create MAC Entity\n(nr5g.internal.nrUEMAC);
+    
+    :Extract PHY parameters into struct;
+    
+    if (PHYAbstractionMethod == "none") then (Yes)
+        :Create Full PHY Entity\n(nr5g.internal.nrUEFullPHY);
+        :Set PHYAbstraction = 0;
+    else (No)
+        :Create Abstract PHY Entity\n(nr5g.internal.nrUEAbstractPHY);
+        :Set PHYAbstraction = 1;
+    endif
+    
+    :Set Inter-layer Interfaces (setLayerInterfaces);
+    
+    :Initialize RxInfo Struct \n(ID, Position, Velocity, NumReceiveAntennas);
+endwhile (No)
+
+:Return configured UE object(s);
+stop
+@enduml

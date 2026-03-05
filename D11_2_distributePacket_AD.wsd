@@ -1,0 +1,59 @@
+@startuml distributePackets_Activity
+skinparam monochrome true
+start
+
+:Call distributePackets(obj, recentlyRunNodesIdx);
+
+:Get recentlyRunNodes and numNodes;
+
+while (For txIdx = 1 to numRecentlyRunNodes?) is (Yes)
+    :txNode = recentlyRunNodes{txIdx};
+    :txData = pullTransmittedData(txNode);
+    
+    while (For pktIdx = 1 to numel(txData)?) is (Yes)
+        :txPacket = txData(pktIdx);
+        
+        if (txPacket.DirectToDestination == 0?) then (Yes (Shared Channel))
+            
+            while (For rxIdx = 1 to numNodes?) is (Yes)
+                :rxNode = rxNodes{rxIdx};
+                :[flag, rxInfo] = isPacketRelevant(rxNode, txPacket);
+                
+                if (flag == true?) then (Yes)
+                    if (obj.DefaultChannelModel == true?) then (Yes)
+                        :rxPacket = freeSpacePathLoss(obj, rxInfo, txPacket);
+                    else (No / Custom Channel)
+                        :rxPacket = obj.ChannelFunction(rxInfo, txPacket);
+                        if (isempty(rxPacket)?) then (Yes)
+                            note right: Packet dropped at channel
+                            :Continue to next rxNode;
+                            detach
+                        else (No)
+                        endif
+                    endif
+                    
+                    :pushReceivedData(rxNode, rxPacket);
+                    :obj.NodeNextInvokeTimes(rxIdx) = obj.CurrentTime;
+                else (No)
+                    note right: Packet not relevant
+                endif
+            endwhile (No)
+            
+        else (No (Direct to Destination))
+            
+            if (Is Destination Node valid and added to simulator?) then (No)
+                :Throw Error (NodeNotAdded);
+                stop
+            else (Yes)
+                :idx = obj.NodeIdxList(txPacket.DirectToDestination);
+                :pushReceivedData(obj.Nodes{idx}, txPacket);
+                :obj.NodeNextInvokeTimes(idx) = obj.CurrentTime;
+            endif
+            
+        endif
+        
+    endwhile (No)
+endwhile (No)
+
+stop
+@enduml

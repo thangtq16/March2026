@@ -1,0 +1,91 @@
+@startuml helperNRSchedulingLogger_Activity
+skinparam monochrome true
+start
+
+:Call helperNRSchedulingLogger(numFramesSim, gNB, UEs, varargin);
+
+:Assign properties from varargin;
+
+if (NetworkSimulator and IsLogReplay are empty?) then (Yes)
+    :Get NetworkSimulator instance\n(wirelessNetworkSimulator.getInstance());
+else (No)
+endif
+
+:Set NumFrames, GNB, UEs, NCellID, NumUEs, NumHARQ;
+:Calculate NumSlotsFrame, slotDuration, symbolDuration;
+:Extract SchedulingType and ResourceAllocationType\nfrom gNB.MACEntity.Scheduler;
+
+:Initialize ColumnIndexMap and GrantLogsColumnIndexMap;
+
+:Calculate max transmission layers for DL (numLayersDL) and UL (numLayersUL);
+
+if (gNB.DuplexMode == "TDD"?) then (Yes)
+    :Set DuplexMode = TDDDuplexMode;
+    :Set NumLogs = 1;
+    :Calculate TDD symbol allocations\n(numDLSymbols, numULSymbols, numSymbols);
+    :Calculate scaleFactorDL and scaleFactorUL;
+    :Set NumDLULPatternSlots and HasSpecialSlot;
+else (No / "FDD")
+    :Set NumLogs = 2;
+    :Set scaleFactorDL = 1, scaleFactorUL = 1;
+endif
+
+if (DuplexMode == TDD OR SchedulingType == SymbolBased?) then (Yes)
+    :Set LogGranularity = 1;
+else (No)
+endif
+
+:Initialize tracking matrices:\nUEMetricsUL, UEMetricsDL, PrevUEMetrics, \nChannelQuality, HARQProcessStatus;
+:Set Bandwidth array;
+
+partition "Calculate Peak Data Rates and Plot Config" {
+    if (LinkDirection == 2 (Both)?) then (Yes)
+        :Set PlotIds = [DownlinkIdx, UplinkIdx];
+        :Calculate PeakDataRateDL and PeakDataRateUL;
+    elseif (LinkDirection == 0 (Downlink)?) then (Yes)
+        :Set PlotIds = DownlinkIdx;
+        :Calculate PeakDataRateDL;
+    else (LinkDirection == 1 (Uplink))
+        :Set PlotIds = UplinkIdx;
+        :Calculate PeakDataRateUL;
+    endif
+    :Calculate corresponding Peak Spectral Efficiencies;
+}
+
+while (For each logIdx in PlotIds) is (Yes)
+    :Set NumRBs for logIdx;
+    :Calculate RBGSize based on RBGSizeConfig;
+endwhile (No)
+
+while (For each required log format) is (Yes)
+    :Construct SchedulingLog format\n(constructLogFormat);
+endwhile (No)
+:Construct GrantLog format\n(constructGrantLogFormat);
+
+if (IsLogReplay AND SchedulingType == SlotBased) then (Yes)
+    :Set StepSize = 1, LogInterval = 1;
+else (Live Visualization)
+    :Set LogInterval = NumSym;
+    if (Symbol Based Scheduling?) then (Yes)
+        :StepSize = 1;
+    else (Slot Based)
+        :StepSize = NumSym;
+    endif
+endif
+
+if (IsLogReplay is empty?) then (Yes (Live Simulation))
+    if (TDD OR Symbol Based Scheduling?) then (Yes)
+        :Register periodic logCellSchedulingStats action\nevery symbolDuration;
+    else (No)
+        :Register periodic logCellSchedulingStats action\nevery slotDuration;
+    endif
+    
+    :Add listener to UEs for 'PacketReceptionEnded';
+    :Add listener to gNB for 'PacketReceptionEnded';
+    :Add listener to gNB for 'ScheduledResources';
+else (No (Log Replay))
+endif
+
+:Return SchedulingLogger Object;
+stop
+@enduml

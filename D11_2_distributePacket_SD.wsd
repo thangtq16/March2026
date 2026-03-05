@@ -1,0 +1,65 @@
+@startuml distributePackets_Sequence
+skinparam monochrome true
+
+actor "Caller\n(Simulator run loop)" as Caller
+participant "Simulator\n(obj)" as Sim
+participant "TxNode\n(recentlyRunNodes{txIdx})" as Tx
+participant "RxNode / DestNode\n(Nodes{idx})" as Rx
+participant "Channel Model" as Channel
+
+Caller -> Sim: distributePackets(recentlyRunNodesIdx)
+activate Sim
+
+loop For each recently run node (TxNode)
+    Sim -> Tx: pullTransmittedData()
+    activate Tx
+    Tx --> Sim: txData (Array of txPackets)
+    deactivate Tx
+    
+    loop For each txPacket in txData
+        
+        alt txPacket.DirectToDestination == 0 (Shared Channel)
+            
+            loop For each rxNode in all Nodes
+                Sim -> Rx: isPacketRelevant(txPacket)
+                activate Rx
+                Rx --> Sim: flag, rxInfo
+                deactivate Rx
+                
+                opt flag == true (Packet is relevant)
+                    
+                    alt DefaultChannelModel == true
+                        Sim -> Sim: freeSpacePathLoss(rxInfo, txPacket)
+                    else Custom Channel
+                        Sim -> Channel: obj.ChannelFunction(rxInfo, txPacket)
+                        activate Channel
+                        Channel --> Sim: rxPacket (Could be empty if dropped)
+                        deactivate Channel
+                    end
+                    
+                    opt rxPacket is NOT empty
+                        Sim -> Rx: pushReceivedData(rxPacket)
+                        Sim -> Sim: NodeNextInvokeTimes(rxIdx) = CurrentTime
+                    end
+                    
+                end
+            end
+            
+        else Direct to Destination Node
+            
+            Sim -> Sim: Validate DirectToDestination ID
+            Sim -> Sim: Find Node index (idx)
+            
+            Sim -> Rx: pushReceivedData(txPacket)
+            note right of Rx: Send packet directly to destination\nwithout applying channel fading
+            Sim -> Sim: NodeNextInvokeTimes(idx) = CurrentTime
+            
+        end
+        
+    end
+end
+
+Sim --> Caller: Return Control
+deactivate Sim
+
+@enduml

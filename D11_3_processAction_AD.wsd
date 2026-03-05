@@ -1,0 +1,57 @@
+@startuml processActions_Activity
+skinparam monochrome true
+start
+
+partition "processActions" {
+    :Call processActions(obj, lastRunTime);
+    
+    if (obj.CurrentTime > lastRunTime?) then (Yes)
+        while (For each action in TimeAdvanceActions?) is (Yes)
+            :Execute action.CallbackFcn();
+        endwhile (No)
+    else (No)
+    endif
+    
+    :Call processRemainingActions(obj);
+}
+
+partition "processRemainingActions" {
+    :Initialize numActions = numel(obj.Actions);
+    :Initialize sortingRequired = false;
+    :Initialize actionIdx = 1;
+    
+    while (actionIdx <= numActions?) is (Yes)
+        if (ActionInvokeTimes(actionIdx) <= CurrentTime?) then (Yes)
+            :Process current action\n(Execute action.CallbackFcn);
+            
+            if (Is periodic action?\nCallbackPeriodicity ~= Inf) then (Yes)
+                :Update CalculatedActionTime\n(+ CallbackPeriodicity);
+                :Update ActionInvokeTimes(actionIdx);
+                :Set sortingRequired = true;
+                :actionIdx = actionIdx + 1;
+            else (No, One-time action)
+                :Remove action from lists\n(Actions and ActionInvokeTimes);
+                :Update numActions limit;
+                note right: actionIdx is not incremented\nbecause the array shifted left
+            endif
+            
+        else (No, Action is in the future)
+            :break while loop;
+            break
+        endif
+    endwhile (No / Break)
+    
+    if (NewActionsAdded == true?) then (Yes)
+        :Set NewActionsAdded = false;
+        :sortActions(obj);
+        :Recursive call: processRemainingActions(obj);
+    else (No)
+        if (sortingRequired == true?) then (Yes)
+            :sortActions(obj);
+        else (No)
+        endif
+    endif
+}
+
+stop
+@enduml

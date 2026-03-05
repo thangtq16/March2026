@@ -1,0 +1,65 @@
+@startuml hNRCustomChannelModel_Sequence
+skinparam monochrome true
+
+actor "Network Simulator" as Caller
+participant "obj: hNRCustomChannelModel" as Model
+participant "nrPathLoss (Toolbox)" as NRPathLoss
+participant "CDL Channel Object" as CDL
+
+== 1. Initialization (Constructor) ==
+Caller -> Model: create(channelModelMatrix, config)
+activate Model
+Model -> Model: Check PathlossMethod
+opt PathlossMethod == "nrPathloss"
+    Model -> Model: Setup NRPathLossConfig (UMa)
+end
+Model -> Model: Loop through matrix to extract\nMaxDelay, PathFilters, and LOS flag
+Model --> Caller: CustomChannelModel Object
+deactivate Model
+
+== 2. Runtime Execution (applyChannelModel) ==
+Caller -> Model: applyChannelModel(rxInfo, txData)
+activate Model
+
+alt PathlossMethod == "fspl"
+    Model -> Model: Calculate Free Space Path Loss (FSPL)
+else PathlossMethod == "nrPathloss"
+    Model -> NRPathLoss: nrPathLoss(Config, Freq, LOS, Positions)
+    activate NRPathLoss
+    NRPathLoss --> Model: pathLoss
+    deactivate NRPathLoss
+end
+
+Model -> Model: outputData.Power = TxPower - pathLoss
+
+alt Channel Model Exists for Tx-Rx Pair
+    Model -> CDL: Set InitialTime
+    
+    alt Full PHY Mode
+        Model -> Model: Pad Tx Waveform with zeros
+        Model -> CDL: Pass padded waveform through channel
+        activate CDL
+        CDL --> Model: Faded Waveform, PathGains, SampleTimes
+        deactivate CDL
+        Model -> Model: Scale waveform magnitude (db2mag(-pathLoss))
+        Model -> Model: Update Signal Duration
+    else Abstract PHY Mode
+        Model -> CDL: Set NumTimeSamples
+        Model -> CDL: Call channel (No waveform)
+        activate CDL
+        CDL --> Model: PathGains, SampleTimes
+        deactivate CDL
+    end
+    Model -> Model: Append PathFilters to Metadata
+    
+else No Channel Model Exists
+    Model -> Model: Set dummy PathGains & Delays
+    opt Full PHY Mode
+        Model -> Model: Generate dummy FFT matrix (H)
+        Model -> Model: outputData.Data = txData.Data * H
+    end
+end
+
+Model --> Caller: Return outputData
+deactivate Model
+@enduml

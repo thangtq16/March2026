@@ -1,0 +1,60 @@
+@startuml nrGNB_Constructor_Sequence
+skinparam monochrome true
+
+actor Caller
+participant "nrGNB\n(Constructor)" as nrGNB
+participant "nrNodeValidation" as Validation
+participant "TrafficManager" as TM
+participant "MAC: nrGNBMAC" as MAC
+participant "PHY Entity" as PHY
+
+Caller -> nrGNB: nrGNB(Position=..., TransmitPower=..., ...)
+activate nrGNB
+
+nrGNB -> Validation: validateGNBInputs(varargin)
+activate Validation
+Validation --> nrGNB: param (Validated N-V pairs)
+deactivate Validation
+
+nrGNB -> nrGNB: Read 'Position' to determine numGNBs
+nrGNB -> nrGNB: Instantiate obj(1:numGNBs)
+nrGNB -> nrGNB: Assign properties from N-V pairs
+nrGNB -> nrGNB: Set NCellID = ID
+
+alt DuplexMode == "FDD"
+    nrGNB -> nrGNB: Calculate separate UL/DL Carrier Frequencies
+else DuplexMode == "TDD"
+    nrGNB -> nrGNB: Set UL/DL Carrier Frequencies = CarrierFrequency
+end
+
+loop For each gNB instance (1 to numGNBs)
+    nrGNB -> TM: create trafficManager(ID, PacketContext)
+    activate TM
+    TM --> nrGNB: TrafficManager Object
+    deactivate TM
+
+    nrGNB -> MAC: create nrGNBMAC(macInfo)
+    activate MAC
+    MAC --> nrGNB: MAC Entity Object
+    deactivate MAC
+
+    nrGNB -> nrGNB: nrConfigureSRSReservedResource()
+    nrGNB -> nrGNB: createCSIRSConfiguration()
+
+    alt PHYAbstractionMethod == "none"
+        nrGNB -> PHY: create nrGNBFullPHY(phyInfo)
+    else Abstract
+        nrGNB -> PHY: create nrGNBAbstractPHY(phyInfo)
+    end
+    activate PHY
+    PHY --> nrGNB: PhyEntity Object
+    deactivate PHY
+
+    nrGNB -> nrGNB: configureScheduler() [Default]
+    nrGNB -> nrGNB: setLayerInterfaces()
+    nrGNB -> nrGNB: Populate RxInfo (Position, Antennas, ...)
+end
+
+nrGNB --> Caller: Return configured gNB object(s)
+deactivate nrGNB
+@enduml

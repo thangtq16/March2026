@@ -1,0 +1,41 @@
+@startuml PhyEntity_run_Activity
+skinparam monochrome true
+start
+
+:Call run(obj, currentTime, packets);
+:Initialize nextInvokeTime = Inf;
+
+if (~isempty(obj.CarrierInformation)?) then (Yes)
+    note right: Carrier is configured
+    
+    :Get symEndTimes and slotDuration;
+    :Calculate durationCompletedInCurrSlot\n(mod(currentTime, slotDuration));
+    
+    partition "Update Time Info Context" {
+        :currTimeInfo.Time = currentTime;
+        :currTimeInfo.NFrame = floor(currentTime / FrameDurationInNS);
+        :currTimeInfo.NSlot = mod(floor(currentTime / slotDuration), SlotsPerFrame);
+        :currTimeInfo.NSymbol = find(durationCompletedInCurrSlot < symEndTimes) - 1;
+    }
+    
+    :phyTx(obj, currTimeInfo);
+    note right: PHY transmission
+    
+    :storeReception(obj, packets);
+    note right: Store the received packets
+    
+    :phyRx(obj, currTimeInfo);
+    note right: PHY reception
+    
+    :nextInvokeTime = getNextInvokeTime(obj);
+    note right: Get the next invoke time for PHY
+    
+else (No)
+    note right: Carrier not configured
+endif
+
+:Update obj.LastRunTime = currentTime;
+
+:Return nextInvokeTime;
+stop
+@enduml

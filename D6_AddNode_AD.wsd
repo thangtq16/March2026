@@ -1,0 +1,63 @@
+@startuml addNodes_Activity
+skinparam monochrome true
+start
+
+:Call addNodes(networkSimulator, nodes);
+
+:Check input arguments (narginchk);
+:Reshape nodes into column vector;
+
+if (Is nodes a cell array?) then (No)
+    :Convert nodes to cell array\n(num2cell);
+else (Yes)
+    if (Are all elements scalar and not cells?) then (No)
+        :Throw Error (InvalidCellVector);
+        stop
+    else (Yes)
+    endif
+endif
+
+if (Is ResetRequired == true?\n(Meaning simulation already started)) then (Yes)
+    :Throw Error (DynamicAddNodesNotSupported);
+    stop
+else (No)
+endif
+
+:Calculate newNodes = numel(nodes);
+
+while (For idx = 1 to newNodes) is (Yes)
+    if (Is nodes{idx} a valid wirelessNode?) then (No)
+        :Throw Error (InvalidNodeType);
+        stop
+    else (Yes)
+    endif
+    
+    :Get nodeID = nodes{idx}.ID;
+    
+    if (numel(NodeIdxList) < nodeID?) then (Yes)
+        :Expand NodeIdxList with zeros;
+    else (No)
+    endif
+    
+    if (NodeIdxList(nodeID) == 0?) then (Yes)
+        :Set NodeIdxList(nodeID) = NumNodes + idx;
+    else (No, ID already exists)
+        if (Is existing node identical to current node?) then (Yes)
+            :Throw Error (DuplicateNodeID);
+            stop
+        else (No)
+            :Throw Error (InvalidState);
+            stop
+        endif
+    endif
+    
+    :Append node to obj.Nodes array;
+    :Set node.Simulator = obj\n(Pass simulator reference to node);
+    
+endwhile (No)
+
+:Update obj.NumNodes = obj.NumNodes + newNodes;
+:Expand obj.NodeNextInvokeTimes array with zeros;
+
+stop
+@enduml

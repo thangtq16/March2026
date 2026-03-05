@@ -1,0 +1,40 @@
+@startuml MUMIMO_Simulation_Activity
+skinparam monochrome true
+start
+
+:Initialize Network Simulator;
+:Configure gNB Node;
+:Configure MU-MIMO and ProportionalFair Scheduler;
+
+:Define UE Positions and Plot Deployment;
+:Create UE Nodes (nrUE);
+:Establish Connectivity (connectUE) with DL Traffic;
+:Add gNB and UEs to Simulator;
+
+:Create CDL Channel Model (hNRCreateCDLChannels);
+:Add Custom Channel Model to Simulator;
+
+if (Enable Traces?) then (Yes)
+    :Setup Scheduling Logger;
+    :Setup PHY Logger;
+else (No)
+endif
+
+:Setup Metrics Visualizer;
+
+:Run Simulation (networkSimulator.run);
+
+:Display Performance Indicators;
+
+if (Enable Traces?) then (Yes)
+    :Extract Simulation Logs (Scheduling, Grants, PHY);
+    :Save Logs to File;
+    :Calculate Average UEs per RB (calculateAvgUEsPerRBDL);
+    :Count Paired UEs per RB (countPairedUEsPerRBDL);
+    :Summarize MU-MIMO layers per Slot (summarizeMuMimoPerSlot);
+    :Plot User Pairing Statistics (Histograms & Bar charts);
+else (No)
+endif
+
+stop
+@enduml

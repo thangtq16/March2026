@@ -1,0 +1,56 @@
+@startuml nrUE_Constructor_Sequence
+skinparam monochrome true
+
+actor Caller
+participant "nrUE\n(Constructor)" as nrUE
+participant "nrNodeValidation" as Validation
+participant "TrafficManager" as TM
+participant "MAC: nrUEMAC" as MAC
+participant "PHY Entity" as PHY
+
+Caller -> nrUE: nrUE(Name=..., Position=..., ...)
+activate nrUE
+
+nrUE -> nrUE: Check Name-Value parity
+
+nrUE -> Validation: validateUEInputs(varargin)
+activate Validation
+Validation --> nrUE: param (Validated N-V pairs)
+deactivate Validation
+
+nrUE -> nrUE: Read 'Position' to determine numUEs
+nrUE -> nrUE: Read 'Name' values
+nrUE -> nrUE: Instantiate obj(1:numUEs)
+nrUE -> nrUE: Assign N-V properties to all objects\n('Position' and 'Name' mapped individually)
+
+loop For each UE instance (1 to numUEs)
+    nrUE -> nrUE: Create matlab.lang.WeakReference(ue)
+    
+    nrUE -> TM: create trafficManager(ID, PacketContext)
+    activate TM
+    TM --> nrUE: TrafficManager Object
+    deactivate TM
+
+    nrUE -> MAC: create nrUEMAC()
+    activate MAC
+    MAC --> nrUE: MAC Entity Object
+    deactivate MAC
+
+    nrUE -> nrUE: Collect PHY parameters (phyInfo)
+
+    alt PHYAbstractionMethod == "none"
+        nrUE -> PHY: create nrUEFullPHY(phyInfo)
+    else Abstract PHY
+        nrUE -> PHY: create nrUEAbstractPHY(phyInfo)
+    end
+    activate PHY
+    PHY --> nrUE: PhyEntity Object
+    deactivate PHY
+
+    nrUE -> nrUE: setLayerInterfaces()
+    nrUE -> nrUE: Populate RxInfo (ID, Position, Velocity, Antennas)
+end
+
+nrUE --> Caller: Return configured UE object(s)
+deactivate nrUE
+@enduml

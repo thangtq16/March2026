@@ -1,0 +1,72 @@
+@startuml helperNRSchedulingLogger_Sequence
+skinparam monochrome true
+
+actor Caller
+participant "Logger Object" as Logger
+participant "wirelessNetworkSimulator" as Simulator
+participant "gNB" as gNB
+participant "gNB.MACEntity.Scheduler" as Scheduler
+participant "UEs" as UEs
+
+Caller -> Logger: create(numFramesSim, gNB, UEs, varargin)
+activate Logger
+
+Logger -> Simulator: getInstance()
+activate Simulator
+Simulator --> Logger: NetworkSimulator instance
+deactivate Simulator
+
+Logger -> Logger: Calculate Time/Slot metrics\n(NumSlotsFrame, slotDuration, symbolDuration)
+
+Logger -> Scheduler: Get SchedulerConfig
+activate Scheduler
+Scheduler --> Logger: SchedulingType, ResourceAllocationType
+deactivate Scheduler
+
+Logger -> Logger: Calculate max layers DL/UL\n(comparing Tx and Rx antennas)
+
+alt DuplexMode == "TDD"
+    Logger -> Logger: Extract DLULConfigTDD
+    Logger -> Logger: Compute scaleFactors (DL/UL) based on TDD pattern
+else DuplexMode == "FDD"
+    Logger -> Logger: Set scaleFactors = 1
+end
+
+Logger -> Logger: Initialize Metric Matrices\n(UEMetrics, HARQStatus, CQI Cells)
+
+Logger -> Logger: Evaluate LinkDirection (DL/UL/Both)
+Logger -> Logger: Calculate PeakDataRates & Spectral Efficiency
+
+loop For each active link direction
+    Logger -> Logger: calculate RBGSize
+    Logger -> Logger: constructLogFormat()
+end
+Logger -> Logger: constructGrantLogFormat()
+
+opt IsLogReplay is empty (Live Simulation)
+    
+    alt TDD OR SymbolBased Scheduling
+        Logger -> Simulator: scheduleAction(@logCellSchedulingStats, symbolDuration)
+    else FDD AND SlotBased
+        Logger -> Simulator: scheduleAction(@logCellSchedulingStats, slotDuration)
+    end
+    
+    Logger -> UEs: addlistener('PacketReceptionEnded', @logPHYMetrics)
+    activate UEs
+    UEs --> Logger: listener registered
+    deactivate UEs
+    
+    Logger -> gNB: addlistener('PacketReceptionEnded', @logPHYMetrics)
+    activate gNB
+    gNB --> Logger: listener registered
+    deactivate gNB
+    
+    Logger -> gNB: addlistener('ScheduledResources', @logSchedulingGrants)
+    activate gNB
+    gNB --> Logger: listener registered
+    deactivate gNB
+end
+
+Logger --> Caller: Configured Logger Object
+deactivate Logger
+@enduml

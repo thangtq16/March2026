@@ -1,0 +1,67 @@
+@startuml gNBMAC_run_Sequence
+skinparam monochrome true
+
+actor "Caller\n(runLayers)" as Caller
+participant "MACEntity\n(nrGNBMAC)" as MAC
+participant "UL/DL Schedulers" as Scheduler
+participant "PHY Layer\n(Implicit)" as PHY
+
+Caller -> MAC: run(currentTime, packets)
+activate MAC
+
+MAC -> MAC: Calculate elapsedTime
+opt currentTime > LastRunTime
+    MAC -> MAC: Update timing context\n(Frame, Slot, Symbol, LCP Timers)
+end
+
+MAC -> MAC: controlRx(packets)
+note right of MAC: Process incoming control packets
+
+MAC -> MAC: Check symbol execution guard
+alt Already ran in current symbol
+    MAC -> MAC: getNextInvokeTime()
+    MAC --> Caller: nextInvokeTime (Early Exit)
+else First time in current symbol
+    
+    MAC -> PHY: dataTx()
+    note right of PHY: Send Tx requests and\nDL MAC PDUs to PHY
+    
+    MAC -> PHY: dataRx()
+    note right of PHY: Send Rx requests to PHY
+    
+    opt currentTime == SchedulerNextInvokeTime (Slot Boundary)
+        MAC -> Scheduler: runULScheduler()
+        activate Scheduler
+        Scheduler --> MAC: resourceAssignmentsUL
+        deactivate Scheduler
+        
+        MAC -> Scheduler: runDLScheduler()
+        activate Scheduler
+        Scheduler --> MAC: resourceAssignmentsDL
+        deactivate Scheduler
+        
+        opt UL/DL Assignments not empty
+            MAC -> MAC: controlTx(Assignments)
+            note right of MAC: Send Out-of-band\nassignments to UE MAC
+        end
+        MAC -> MAC: Increment SchedulerNextInvokeTime
+    end
+    
+    opt CurrentTime matches CSI-RS Tx Time
+        MAC -> PHY: dlControlRequest()
+        MAC -> MAC: Update next CSI-RS Tx time
+    end
+    
+    opt CurrentTime matches SRS Rx Time
+        MAC -> PHY: ulControlRequest()
+        MAC -> MAC: Update next SRS Rx time
+    end
+    
+    MAC -> MAC: Update PreviousSymbol
+    MAC -> MAC: getNextInvokeTime()
+    
+    MAC --> Caller: Return nextInvokeTime
+end
+
+deactivate MAC
+@enduml

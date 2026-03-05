@@ -1,0 +1,26 @@
+@startuml runLayers_Activity
+skinparam monochrome true
+start
+
+:Call runLayers(obj, currentTime, packets);
+
+:nextAppTime = run(obj.TrafficManager, currentTime);
+note right: Run the application traffic manager
+
+:nextRLCTime = runRLCLayer(obj, currentTime);
+note right: Run the RLC layer
+
+:nextMACTime = run(obj.MACEntity, currentTime, packets);
+note right: Run the MAC layer operations
+
+:nextPHYTime = run(obj.PhyEntity, currentTime, packets);
+note right: Run the PHY layer operations
+
+:Calculate minimum next invoke time:\nmin([nextAppTime, nextRLCTime, nextMACTime, nextPHYTime]);
+:nextInvokeTime = minTime * 1e-9;
+note right: Convert time from nanoseconds to seconds
+
+:Return nextInvokeTime;
+
+stop
+@enduml

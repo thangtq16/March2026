@@ -1,0 +1,53 @@
+@startuml nrGNB_Constructor_Activity
+skinparam monochrome true
+start
+
+:Call nrGNB() constructor with Name-Value pairs;
+
+if (Are N-V pairs valid?) then (No)
+    :Throw Error (invalidPVPairs);
+    stop
+else (Yes)
+endif
+
+:Validate Inputs (nrNodeValidation.validateGNBInputs);
+
+:Determine number of gNBs to create\n(Based on rows in 'Position' argument);
+:Instantiate array of gNB objects: obj(1:numGNBs);
+
+:Assign N-V property values to all gNB objects;
+
+if (SubcarrierSpacing > 30kHz AND \nPHYAbstractionMethod == 'none'?) then (Yes)
+    :Throw Error (InvalidSCSWithPhyAbstractionMethod);
+    stop
+else (No)
+endif
+
+:Set NCellID = Node ID for all objects;
+
+if (DuplexMode == "FDD") then (Yes)
+    :Calculate separate UL and DL Carrier Frequencies\n(Using CarrierFrequency, GuardBand, ChannelBandwidth);
+else (No / "TDD")
+    :Set UL and DL Carrier Frequencies = CarrierFrequency;
+endif
+
+while (For each gNB object in array (1 to numGNBs)?) is (Yes)
+    :Create Traffic Manager\n(wirelessnetwork.internal.trafficManager);
+    :Create MAC Entity (nr5g.internal.nrGNBMAC);
+    :Configure SRS Reserved Resources\n(nrConfigureSRSReservedResource);
+    :Create Default CSI-RS Configuration\n(createCSIRSConfiguration);
+    
+    if (PHYAbstractionMethod == "none") then (Yes)
+        :Create Full PHY Entity\n(nr5g.internal.nrGNBFullPHY);
+    else (No)
+        :Create Abstract PHY Entity\n(nr5g.internal.nrGNBAbstractPHY);
+    endif
+    
+    :Configure Default Scheduler (configureScheduler);
+    :Set Inter-layer Interfaces (setLayerInterfaces);
+    :Initialize RxInfo Struct (ID, Position, Velocity, etc.);
+endwhile (No)
+
+:Return configured gNB object(s);
+stop
+@enduml

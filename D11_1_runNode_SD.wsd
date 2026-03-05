@@ -1,0 +1,34 @@
+@startuml run_Node_Sequence
+skinparam monochrome true
+
+actor "Network Simulator" as Caller
+participant "Node\n(nrGNB / nrUE)" as Node
+participant "Internal Layers\n(MAC, PHY, etc.)" as Layers
+
+Caller -> Node: run(currentTime)
+activate Node
+
+Node -> Node: obj.LastRunTime = currentTime
+Node -> Node: Calculate obj.LastRunTimeInNanoseconds\n(round(currentTime * 1e9))
+
+alt obj.ReceiveBufferIdx ~= 0 (Buffer has data)
+    Node -> Layers: runLayers(LastRunTimeInNs, ReceiveBufferData)
+    activate Layers
+    note right of Layers: Process buffered received packets
+    Layers --> Node: nextInvokeTime
+    deactivate Layers
+    
+    Node -> Node: Reset obj.ReceiveBufferIdx = 0
+    
+else obj.ReceiveBufferIdx == 0 (Buffer is empty)
+    Node -> Layers: runLayers(LastRunTimeInNs, {})
+    activate Layers
+    note right of Layers: Update current time for all layers\n(No data to process)
+    Layers --> Node: nextInvokeTime
+    deactivate Layers
+end
+
+Node --> Caller: Return nextInvokeTime
+deactivate Node
+
+@enduml

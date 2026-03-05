@@ -1,0 +1,81 @@
+@startuml hNRCreateCDLChannels_Sequence
+skinparam monochrome true
+
+actor Caller
+participant "hNRCreateCDLChannels" as Main
+participant "nrOFDMInfo" as OFDM
+participant "nrCDLChannel" as CDL
+participant "hMakeCustomCDL" as CustomCDL
+participant "hArrayGeometry" as Geometry
+participant "rangeangle" as RangeAngle
+
+Caller -> Main: hNRCreateCDLChannels(channelConfig, gNB, UEs)
+activate Main
+
+Main -> OFDM: get nrOFDMInfo(NumRBs, SCS)
+activate OFDM
+OFDM --> Main: waveformInfo (SampleRate)
+deactivate OFDM
+
+Main -> CDL: create(CarrierFrequency, SampleRate)
+activate CDL
+CDL --> Main: base cdlChannel object
+deactivate CDL
+
+Main -> Main: Apply properties from channelConfig
+Main -> Main: Set ChannelFiltering rule
+
+loop For each UE (ueIdx = 1 to numUEs)
+    
+    group Downlink (DL) Channel
+        Main -> CustomCDL: hMakeCustomCDL(cdlChannel)
+        activate CustomCDL
+        CustomCDL --> Main: dlChannel
+        deactivate CustomCDL
+        
+        Main -> Main: Set dlChannel.Seed = 73 + (ueIdx - 1)
+        
+        Main -> Geometry: hArrayGeometry(dlChannel, TxAnt, RxAnt, "downlink")
+        activate Geometry
+        Geometry --> Main: dlChannel (updated array)
+        deactivate Geometry
+        
+        Main -> RangeAngle: rangeangle(UE Position, gNB Position)
+        activate RangeAngle
+        RangeAngle --> Main: depAngleDL
+        deactivate RangeAngle
+        Main -> Main: Apply Departure Angle Offsets (AoD, ZoD)
+        
+        Main -> RangeAngle: rangeangle(gNB Position, UE Position)
+        activate RangeAngle
+        RangeAngle --> Main: arrAngleDL
+        deactivate RangeAngle
+        Main -> Main: Apply Arrival Angle Offsets (AoA, ZoA)
+        
+        opt isFDD
+            Main -> Main: dlChannel.CarrierFrequency = gNB.DLCarrierFrequency
+        end
+        Main -> Main: channels{gNB.ID, UE.ID} = dlChannel
+    end
+    
+    group Uplink (UL) Channel
+        Main -> Main: ulChannel = clone(dlChannel)
+        Main -> Main: ulChannel.swapTransmitAndReceive()
+        
+        Main -> Geometry: hArrayGeometry(ulChannel, TxAnt, RxAnt, "uplink")
+        activate Geometry
+        Geometry --> Main: ulChannel (updated array)
+        deactivate Geometry
+        
+        opt isFDD
+            Main -> Main: ulChannel.CarrierFrequency = gNB.ULCarrierFrequency
+        end
+        Main -> Main: channels{UE.ID, gNB.ID} = ulChannel
+    end
+    
+end
+
+Main --> Caller: Return 'channels' array
+deactivate Main
+
+@enduml

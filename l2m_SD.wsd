@@ -1,0 +1,73 @@
+@startuml L2SM_Sequence
+skinparam monochrome true
+autonumber
+
+actor "PHY Simulator\n(Caller)" as Caller
+participant "L2SM\n(Static)" as L2SM
+participant "LQM Functions" as LQM
+participant "LPM Functions" as LPM
+participant "AWGN Tables" as AWGN
+
+== Initialization ==
+Caller -> L2SM: initialize(carrier, nProcesses, nCodewords)
+activate L2SM
+L2SM --> Caller: l2sm (state struct)
+deactivate L2SM
+
+== Link Quality Model (LQM) ==
+Caller -> L2SM: linkQualityModel(l2sm, carrier, chsig, estChannelGrid, noiseEst, wtx)
+activate L2SM
+L2SM -> LQM: prepareLQMInput()
+activate LQM
+LQM -> LQM: getChannelEstimates()
+LQM -> LQM: extract indices and H_est
+LQM --> L2SM: sig struct
+deactivate LQM
+L2SM -> LQM: calculateSINR(sig, intf)
+activate LQM
+LQM --> L2SM: SINRs
+deactivate LQM
+L2SM --> Caller: [l2sm, SINRs]
+deactivate L2SM
+
+== Transmitter HARQ Update ==
+Caller -> L2SM: txHARQ(l2sm, harqInfo, targetCodeRate, G)
+activate L2SM
+L2SM -> L2SM: Update l2sm state (Reset if NewData)
+L2SM --> Caller: l2sm
+deactivate L2SM
+
+== Link Performance Model (LPM) ==
+Caller -> L2SM: linkPerformanceModel(l2sm, harqInfo, pxsch, SINRs)
+activate L2SM
+L2SM -> LPM: applyHarqHistory(l2sm, harqInfo, pxsch, SINRs)
+activate LPM
+LPM -> LPM: combineSINRs()
+LPM -> LPM: getGsum() & getCsum() (Rate Recovery Soft Buffer)
+LPM -> LPM: performChaseCombining()
+LPM --> L2SM: harqedSINRs, ECR, C
+deactivate LPM
+
+L2SM -> LPM: effectiveSINRMapping(Qm, harqedSINRs, Alpha, Beta)
+activate LPM
+LPM --> L2SM: effectiveSINR
+deactivate LPM
+
+L2SM -> LPM: sinrToCodeBLER(effectiveSINR, trBlkSizes, Qm, ECR)
+activate LPM
+LPM -> AWGN: loadAWGNTables()
+activate AWGN
+AWGN --> LPM: awgnTables (MAT file data)
+deactivate AWGN
+LPM -> LPM: getAWGNTable(BGN, R, Qm, Zc)
+LPM -> LPM: interpolatePER()
+LPM --> L2SM: codeBLER
+deactivate LPM
+
+L2SM -> L2SM: Calculate transportBLER from codeBLER
+L2SM -> L2SM: blkerr = (rand() < transportBLER)
+
+L2SM --> Caller: [l2sm, blkerr, lpmInfo]
+deactivate L2SM
+
+@enduml

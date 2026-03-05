@@ -1,0 +1,28 @@
+@startuml helperNRPhyLogger_Activity
+skinparam monochrome true
+start
+
+:Call helperNRPhyLogger(numFramesSim, gNB, UEs);
+
+:Get NetworkSimulator instance\n(wirelessNetworkSimulator.getInstance());
+
+:Assign core properties\n(GNB, UEs, NCellID);
+:Extract SchedulingType from\ngNB.MACEntity.Scheduler.SchedulerConfig;
+
+:Initialize ColumnIndexMap (containers.Map);
+:Determine NumUEs and initialize UEIdList;
+
+:Calculate NumSlotsFrame\n((10 * SubcarrierSpacing) / 15e3);
+
+:Construct RxStatsLog format\n(constructLogFormat);
+
+:Initialize RxStats tracking matrices:\n - UERxStats\n - GNBRxStats\n - PrevCumulativeULBlkErr\n - PrevCumulativeDLBlkErr;
+
+:Calculate phyLogPeriodicity in seconds\n(((15e3 / SubcarrierSpacing) / 14) * 1e-3);
+
+:Register periodic logging event\nscheduleAction(networkSimulator, @logCellPhyStats);
+
+:Return configured PhyLogger object;
+
+stop
+@enduml

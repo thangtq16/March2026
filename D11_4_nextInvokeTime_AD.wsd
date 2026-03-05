@@ -1,0 +1,27 @@
+@startuml nextInvokeTime_Activity
+skinparam monochrome true
+start
+
+:Call nextInvokeTime(obj);
+
+if (NumNodes == 0?) then (Yes)
+    :nextNodeDt = inf;
+else (No)
+    :nextNodeDt = min(obj.NodeNextInvokeTimes);
+    note right: Get minimum invoke time\namong all nodes
+endif
+
+if (~isempty(obj.ActionInvokeTimes)?) then (Yes)
+    note right: Actions are scheduled
+    :nextActionTimes = ActionInvokeTimes\n(excluding obj.CurrentTime);
+    :dt = min(nextActionTimes(1), nextNodeDt);
+    note right: Get minimum between next\naction time and next node time
+else (No)
+    note right: No actions scheduled
+    :dt = nextNodeDt;
+endif
+
+:Return dt;
+
+stop
+@enduml

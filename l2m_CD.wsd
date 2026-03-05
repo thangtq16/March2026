@@ -1,0 +1,58 @@
+@startuml L2SM_Class
+skinparam classAttributeIconSize 0
+skinparam monochrome true
+
+class L2SM <<Static Interface>> {
+    -- Public Static Methods --
+    + {static} initialize(varargin) : struct l2sm
+    + {static} linkQualityModel(varargin) : [l2sm, SINRs, varargout]
+    + {static} prepareLQMInput(l2sm, carrier, chsig, estChannelGrid, noiseEst, wtx) : [l2sm, sig, varargout]
+    + {static} linkPerformanceModel(l2sm, harqInfo, pxsch, SINRs) : [l2sm, blkerr, lpmInfo]
+    + {static} txHARQ(l2sm, harqInfo, targetCodeRate, G) : l2sm
+    + {static} cqiSelect(l2sm, carrier, pxsch, xOverhead, SINRs, cqiTable, blerThreshold) : [l2sm, cqiIndex, cqiInfo]
+}
+
+class L2SM_State_Struct <<Struct>> {
+    -- Properties (State Variables) --
+    + Carrier : struct
+    + SINRs : cell array
+    + Gsum : double
+    + G : double
+    + TargetCodeRate : double
+    + Nref : double
+    + Alpha : double
+    + Beta : double
+    + SplitCodeBlocks : boolean
+    + GridSize : double[]
+    + IndicesInfo : struct
+    + CQI : struct (Table, XOverhead, Qm, G, ...)
+    + RRArgs : cell
+    + SoftBuffer : cell
+}
+
+class Local_Functions <<Functions>> {
+    -- LQM Helpers --
+    - getChannelEstimates()
+    - calculateSINR()
+    - projectInterference()
+    - getSINRIndices()
+    -- LPM & HARQ Helpers --
+    - applyHarqHistory()
+    - combineSINRs()
+    - getGsum()
+    - getCsum()
+    - performChaseCombining()
+    - splitCodeBlocks()
+    - effectiveSINRMapping()
+    - sinrToCodeBLER()
+    - getAWGNTable()
+    - loadAWGNTables()
+    -- CQI Helpers --
+    - combinationsCQI()
+    - sinrToCodeBLERForCQI()
+    - bestPerCodewordCQI()
+}
+
+L2SM ..> L2SM_State_Struct : "Creates & Updates"
+L2SM ..> Local_Functions : "Invokes"
+@enduml

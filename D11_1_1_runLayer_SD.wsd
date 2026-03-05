@@ -1,0 +1,40 @@
+@startuml runLayers_Sequence
+skinparam monochrome true
+
+actor "Caller\n(Node's run method)" as Caller
+participant "Node Object\n(obj)" as Node
+participant "TrafficManager" as App
+participant "MACEntity" as MAC
+participant "PhyEntity" as PHY
+
+Caller -> Node: runLayers(currentTime, packets)
+activate Node
+
+Node -> App: run(currentTime)
+activate App
+note right of App: Process application traffic
+App --> Node: nextAppTime
+deactivate App
+
+Node -> Node: runRLCLayer(currentTime)
+note right of Node: Internal method to process RLC
+Node --> Node: nextRLCTime
+
+Node -> MAC: run(currentTime, packets)
+activate MAC
+note right of MAC: Process MAC layer operations
+MAC --> Node: nextMACTime
+deactivate MAC
+
+Node -> PHY: run(currentTime, packets)
+activate PHY
+note right of PHY: Process PHY layer operations
+PHY --> Node: nextPHYTime
+deactivate PHY
+
+Node -> Node: Find minimum time across all layers
+Node -> Node: Convert to seconds (minTime * 1e-9)
+
+Node --> Caller: Return nextInvokeTime
+deactivate Node
+@enduml

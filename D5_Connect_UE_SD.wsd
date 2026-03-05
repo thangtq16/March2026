@@ -1,0 +1,75 @@
+@startuml connectUE_Sequence
+skinparam monochrome true
+
+actor Caller
+participant "nrGNB" as gNB
+participant "nrNodeValidation" as Validation
+participant "MACEntity" as MAC
+participant "PhyEntity" as PHY
+participant "Scheduler" as Scheduler
+participant "nrUE (Target)" as UE
+
+Caller -> gNB: connectUE(UEs, Name-Value pairs)
+activate gNB
+
+gNB -> gNB: Validate arguments (Scalar gNB, Vector UEs)
+gNB -> gNB: Check SRS capacity for Total Connected UEs
+gNB -> gNB: Initialize array of connectionConfigStructs
+
+loop For each N-V pair
+    gNB -> Validation: validateConnectUEInputs(name, value)
+    activate Validation
+    Validation --> gNB: Validated Value
+    deactivate Validation
+    gNB -> gNB: Apply value to all configs in list
+end
+
+alt CSIRSConfig is provided & empty
+    gNB -> gNB: Disable CSI-RS Configuration
+else CSIRSConfig is provided & valid
+    gNB -> gNB: Validate TDD constraints & RowNumber
+    gNB -> gNB: Apply Custom CSI-RS Config
+else Not provided
+    gNB -> gNB: Use Default gNB CSI-RS Config
+end
+
+loop For i = 1 to numUEs
+    gNB -> gNB: Check if UE(i) is already connected
+    
+    gNB -> gNB: Allocate RNTI
+    gNB -> gNB: nrCreateSRSConfiguration(UE(i), RNTI)
+    
+    gNB -> Validation: validateConnectionConfig()
+    activate Validation
+    Validation --> gNB: Validated Config
+    deactivate Validation
+    
+    gNB -> gNB: Update ConnectedUEs & UENodeIDs arrays
+    
+    gNB -> MAC: addConnection(macConnectionInfo)
+    activate MAC
+    MAC --> gNB: success
+    deactivate MAC
+    
+    gNB -> PHY: addConnection(phyConnectionInfo)
+    activate PHY
+    PHY --> gNB: success
+    deactivate PHY
+    
+    gNB -> Scheduler: addConnectionContext(schedulerConnectionInfo)
+    activate Scheduler
+    Scheduler --> gNB: success
+    deactivate Scheduler
+    
+    gNB -> gNB: addRLCBearer(rlcConnectionInfo)
+    
+    gNB -> UE: addConnection(connectionConfig)
+    activate UE
+    note right of UE: Initializes MAC, PHY, RLC\non the UE side with matching RNTI
+    UE --> gNB: success
+    deactivate UE
+end
+
+gNB --> Caller: Return Control
+deactivate gNB
+@enduml

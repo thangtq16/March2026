@@ -1,0 +1,72 @@
+@startuml configureScheduler_Sequence
+skinparam monochrome true
+
+actor Caller
+participant "nrGNB" as gNB
+participant "nrNodeValidation" as Validation
+participant "nrScheduler" as Scheduler
+participant "MACEntity" as MAC
+participant "PhyEntity" as PHY
+
+Caller -> gNB: configureScheduler(Name-Value pairs)
+activate gNB
+
+gNB -> gNB: Validate N-V pairs parity
+gNB -> gNB: Check execution state\n(No run yet, No connected UEs, First call)
+
+gNB -> gNB: Initialize Default config structures
+
+loop For each Name-Value pair
+    alt N-V == MUMIMOConfigDL
+        gNB -> gNB: Check CSIMeasurementSignalDL
+        gNB -> Validation: validateConfigureSchedulerMUMIMOInputs()
+        activate Validation
+        Validation --> gNB: Validated MU-MIMO Config
+        deactivate Validation
+        gNB -> gNB: Set MUMIMOEnabled = true
+        
+    else N-V == LinkAdaptationConfigDL/UL
+        gNB -> Validation: validateConfigureSchedulerLAInputs()
+        activate Validation
+        Validation --> gNB: Validated LA Config
+        deactivate Validation
+        
+    else N-V == Other Params
+        gNB -> Validation: validateConfigureSchedulerInputs()
+        activate Validation
+        Validation --> gNB: Validated Config
+        deactivate Validation
+    end
+end
+
+gNB -> gNB: Validate LA vs FixedMCS conflicts
+
+alt isCustomScheduler == false
+    gNB -> Scheduler: create nrScheduler() instances
+    activate Scheduler
+    Scheduler --> gNB: Array of nrScheduler objects
+    deactivate Scheduler
+end
+
+loop For each gNB instance in array
+    gNB -> gNB: Fetch node parameters\n(DuplexMode, Antennas, SCS, etc.)
+    gNB -> gNB: Validate FullPHY vs SRS-based CSI
+    
+    gNB -> MAC: get DMRSTypeAPosition
+    activate MAC
+    MAC --> gNB: DMRSTypeAPosition
+    deactivate MAC
+    
+    gNB -> MAC: addScheduler(scheduler)
+    gNB -> Scheduler: configureScheduler(schedulerInfo)
+    
+    alt PHYAbstractionMethod == "none"
+        gNB -> PHY: Set RVSequence
+    end
+    
+    gNB -> gNB: Set SchedulerDefaultConfig = false
+end
+
+gNB --> Caller: Return Control
+deactivate gNB
+@enduml

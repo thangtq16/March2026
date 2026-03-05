@@ -1,0 +1,74 @@
+@startuml MUMIMO_Simulation_Sequence
+skinparam monochrome true
+
+actor User
+participant "Main Script" as Script
+participant "Network Simulator" as Simulator
+participant "gNB Node" as gNB
+participant "UE Nodes" as UEs
+participant "Channel Model" as Channel
+participant "Loggers & Visualizer" as Metrics
+
+User -> Script: Execute Script
+activate Script
+
+Script -> Simulator: init()
+activate Simulator
+Simulator --> Script: networkSimulator
+deactivate Simulator
+
+Script -> gNB: create nrGNB()
+activate gNB
+gNB --> Script: gNB object
+deactivate gNB
+
+Script -> gNB: configureScheduler(MU-MIMO Config, ProportionalFair)
+
+Script -> UEs: create nrUEs(Positions, 4x4 MIMO)
+activate UEs
+UEs --> Script: array of UE objects
+deactivate UEs
+
+Script -> Script: connectUE(gNB, UEs, Traffic="DL")
+
+Script -> Simulator: addNodes(gNB)
+Script -> Simulator: addNodes(UEs)
+
+Script -> Channel: hNRCreateCDLChannels(CDL-D)
+activate Channel
+Channel --> Script: channels
+deactivate Channel
+
+Script -> Channel: hNRCustomChannelModel(channels)
+Script -> Simulator: addChannelModel()
+
+opt Enable Traces
+    Script -> Metrics: helperNRSchedulingLogger()
+    Script -> Metrics: helperNRPhyLogger()
+end
+Script -> Metrics: helperNRMetricsVisualizer()
+
+Script -> Simulator: run(simulationTime)
+activate Simulator
+note right of Simulator: Simulator core processes packets,\napplies channel fading, and executes scheduling.
+Simulator --> Script: Simulation Complete
+deactivate Simulator
+
+Script -> Metrics: displayPerformanceIndicators()
+
+opt Enable Traces
+    Script -> Metrics: getSchedulingLogs()
+    Script -> Metrics: getGrantLogs()
+    Script -> Metrics: getReceptionLogs()
+    Metrics --> Script: logInfo
+    
+    Script -> Script: save("simulationLogs")
+    
+    Script -> Script: calculateAvgUEsPerRBDL()
+    Script -> Script: countPairedUEsPerRBDL()
+    Script -> Script: summarizeMuMimoPerSlot()
+    Script -> User: Display MU-MIMO Statistics Plots
+end
+
+deactivate Script
+@enduml

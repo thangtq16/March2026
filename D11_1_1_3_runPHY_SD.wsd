@@ -1,0 +1,35 @@
+@startuml PhyEntity_run_Sequence
+skinparam monochrome true
+
+actor "Caller\n(runLayers)" as Caller
+participant "PhyEntity\n(nrGNBPHY / nrUEPHY)" as PHY
+
+Caller -> PHY: run(currentTime, packets)
+activate PHY
+
+PHY -> PHY: Initialize nextInvokeTime = Inf
+
+opt CarrierInformation is not empty
+    PHY -> PHY: Retrieve SymbolTimings & SlotDuration
+    PHY -> PHY: Calculate Frame, Slot, and Symbol indices
+    PHY -> PHY: Update currTimeInfo structure
+    
+    PHY -> PHY: phyTx(currTimeInfo)
+    note right of PHY: Process and dispatch\npending transmissions
+    
+    PHY -> PHY: storeReception(packets)
+    note right of PHY: Push incoming packets\ninto reception buffer
+    
+    PHY -> PHY: phyRx(currTimeInfo)
+    note right of PHY: Process buffered packets\nfor reception
+    
+    PHY -> PHY: getNextInvokeTime()
+    PHY --> PHY: nextInvokeTime
+end
+
+PHY -> PHY: obj.LastRunTime = currentTime
+
+PHY --> Caller: Return nextInvokeTime
+deactivate PHY
+
+@enduml

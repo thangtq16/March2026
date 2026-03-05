@@ -1,0 +1,44 @@
+@startuml addNodes_Sequence
+skinparam monochrome true
+
+actor Caller
+participant "networkSimulator\n(wirelessNetworkSimulator)" as Simulator
+participant "nodes{idx}\n(wirelessNode)" as Node
+
+Caller -> Simulator: addNodes(nodes)
+activate Simulator
+
+Simulator -> Simulator: Format nodes into a cell array
+Simulator -> Simulator: Check if simulation already started\n(ResetRequired == false)
+
+loop For idx = 1 to length(nodes)
+    Simulator -> Simulator: Validate node subclass type
+    
+    Simulator -> Node: Get ID
+    activate Node
+    Node --> Simulator: nodeID
+    deactivate Node
+    
+    Simulator -> Simulator: Expand NodeIdxList if necessary
+    
+    alt NodeIdxList(nodeID) == 0 (First time adding this ID)
+        Simulator -> Simulator: Map nodeID to index (NumNodes + idx)
+    else ID already mapped
+        Simulator -> Simulator: Check for Duplicate Node / Invalid State
+    end
+    
+    Simulator -> Simulator: Append node to Simulator.Nodes array
+    
+    Simulator -> Node: Set Simulator reference\n(nodes{idx}.Simulator = obj)
+    activate Node
+    note right of Node: Node can now query\ncurrent simulation time
+    Node --> Simulator: success
+    deactivate Node
+end
+
+Simulator -> Simulator: Update NumNodes count
+Simulator -> Simulator: Expand NodeNextInvokeTimes array
+
+Simulator --> Caller: Return Control
+deactivate Simulator
+@enduml

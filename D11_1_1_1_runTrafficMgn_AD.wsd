@@ -1,0 +1,54 @@
+@startuml trafficManager_run_Activity
+skinparam monochrome true
+start
+
+:Call run(obj, currentTime);
+:Initialize nextInvokeTime = Inf;
+
+while (For idx = 1 to TrafficSourcesCount?) is (Yes)
+    
+    while (obj.NextInvokeTime(idx) == currentTime?) is (Yes)
+        :Get packetInfo = obj.PacketInfo(idx);
+        :Increment PacketIDCounter(idx);
+        
+        if (DataAbstraction == true?) then (Yes)
+            :Call generate() on TrafficSources{idx};
+            :Receive dt, packetLength;
+            :Set packet = [];
+        else (No)
+            :Call generate() on TrafficSources{idx};
+            :Receive dt, packetLength, packet;
+        endif
+        
+        :Populate packetInfo struct\n(Packet, Length, GenerationTime, ID);
+        
+        :Add "AppTimestamp" tag to packetInfo.Tags\n(via packetTags.add);
+        
+        :Update obj.NextInvokeTime(idx) = \ncurrentTime + ceil(dt*1e6) (in ns);
+        
+        if (CustomSendPacketFcnFlag(idx) == true?) then (Yes)
+            :isPacketQueued = obj.CustomSendPacketFcn{idx}(packetInfo);
+        else (No)
+            :isPacketQueued = obj.SendPacketFcn(packetInfo);
+        endif
+        
+        if (isPacketQueued == true?) then (Yes)
+            :Increment TransmittedPacketsPerSource(idx);
+            :Add packetLength to TransmittedBytesPerSource(idx);
+        else (No / Queue Overflow)
+            :Increment TransmitQueueOverflowPerSource(idx);
+        endif
+        
+    endwhile (No)
+    
+    if (obj.NextInvokeTime(idx) < nextInvokeTime?) then (Yes)
+        :Update nextInvokeTime = obj.NextInvokeTime(idx);
+    else (No)
+    endif
+    
+endwhile (No)
+
+:Return nextInvokeTime;
+
+stop
+@enduml

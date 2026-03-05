@@ -1,0 +1,73 @@
+@startuml hNRCustomChannelModel_Activity
+skinparam monochrome true
+start
+
+partition "1. Constructor: hNRCustomChannelModel" {
+    :Call hNRCustomChannelModel(channelModelMatrix, varargin);
+    
+    if (Has Custom Configuration?) then (Yes)
+        :Set PHYAbstractionMethod;
+        :Set PathlossMethod;
+        if (PathlossMethod == "nrPathloss"?) then (Yes)
+            :Initialize NRPathLossConfig (Scenario='UMa', Height=1);
+        else (No)
+        endif
+    else (No)
+    endif
+    
+    :Determine PHYAbstractionMethodNum (Full PHY vs Abstract);
+    :Store ChannelModelMatrix;
+    :Initialize MaxChannelDelayMatrix and Los matrices;
+    
+    while (For each channel {i, j} in ChannelModelMatrix?) is (Yes)
+        if (Is ChannelModelMatrix{i,j} not empty?) then (Yes)
+            :Get Channel Info (PathDelays, FilterDelay, KFactor);
+            :Calculate and store MaxChannelDelayMatrix(i,j);
+            :Store PathFilter{i,j};
+            :Determine Line-of-Sight (Los) based on KFactor;
+        else (No)
+        endif
+    endwhile (No)
+}
+
+partition "2. Method: applyChannelModel" {
+    :Call applyChannelModel(rxInfo, txData);
+    :Copy txData to outputData;
+    
+    if (PathlossMethod == "fspl"?) then (Yes)
+        :Calculate distance between Tx and Rx;
+        :Calculate pathLoss using fspl();
+    else (No / "nrPathloss")
+        :Calculate pathLoss using nrPathLoss()\nwith NRPathLossConfig and LOS indicator;
+    endif
+    
+    :Apply pathLoss to outputData.Power;
+    
+    if (Does Channel Model exist between Tx and Rx?) then (Yes)
+        :Set InitialTime for Channel;
+        
+        if (PHYAbstractionMethod == Full PHY?) then (Yes)
+            :Pad txData.Data with zeros based on MaxChannelDelay;
+            :Pass waveform through ChannelModelMatrix{Tx, Rx}\n(Extracts Data, PathGains, SampleTimes);
+            :Scale outputData.Data magnitude by pathLoss;
+            :Update outputData.Duration;
+        else (No / Abstract PHY)
+            :Set NumTimeSamples for Channel;
+            :Call ChannelModelMatrix{Tx, Rx} WITHOUT data\n(Extracts only PathGains, SampleTimes);
+        endif
+        :Assign Channel PathFilters to metadata;
+        
+    else (No Channel Model exists)
+        :Assign default dummy PathGains, PathDelays, PathFilters, SampleTimes;
+        
+        if (PHYAbstractionMethod == Full PHY?) then (Yes)
+            :Create dummy FFT channel matrix (H);
+            :Multiply txData.Data by H;
+        else (No / Abstract PHY)
+        endif
+    endif
+}
+
+:Return outputData;
+stop
+@enduml

@@ -1,0 +1,48 @@
+@startuml run_Simulator_Activity
+skinparam monochrome true
+start
+
+:Call run(obj, simulationDuration);
+
+:Validate input arguments (narginchk, validateattributes);
+:Round simulationDuration to nearest nanosecond;
+
+if (Is ResetRequired == true?) then (Yes)
+    :Throw Error (InvalidState);
+    stop
+else (No)
+endif
+
+:Set ResetRequired = true;
+:Set EndTime = simulationDuration;
+:Initialize recentlyRunNodesFlag and lastRunTime = 0;
+
+while (CurrentTime <= simulationDuration?) is (Yes)
+    
+    partition "Execute Nodes" {
+        while (For nodeIdx = 1 to NumNodes?) is (Yes)
+            if (NodeNextInvokeTimes(nodeIdx) - CurrentTime < 1e-9?) then (Yes)
+                :run(Nodes{nodeIdx}, CurrentTime);
+                :Update NodeNextInvokeTimes(nodeIdx);
+                :Set recentlyRunNodesFlag(nodeIdx) = true;
+            else (No)
+            endif
+        endwhile (No)
+    }
+    
+    :Find recentlyRanNodesIdx;
+    :distributePackets(obj, recentlyRanNodesIdx);
+    :Reset recentlyRunNodesFlag to false;
+    
+    :processActions(obj, lastRunTime);
+    
+    :Calculate nextRunTime = nextInvokeTime(obj);
+    
+    :Advance Simulation Time:\nlastRunTime = CurrentTime\nCurrentTime = round(nextRunTime, 9);
+
+endwhile (No)
+
+:Set CurrentTime = simulationDuration;
+
+stop
+@enduml

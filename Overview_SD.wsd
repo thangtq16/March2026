@@ -1,0 +1,291 @@
+@startuml MUMIMO_Full_Simulation_Sequence
+!pragma teoz true
+skinparam maxMessageSize 250
+skinparam monochrome true
+autonumber
+
+title 5G NR Downlink MU-MIMO Full Simulation Execution Flow
+
+actor "User" as User
+participant "Main Script\n(Algorithm)" as Script
+participant "Network Simulator\n(wirelessNetworkSimulator)" as Sim
+box "gNB Node (Macro)" #LightGray
+    participant "nrGNB" as gNB
+    participant "TrafficMgr\n(gNB)" as gNBTraf
+    participant "MAC & Scheduler\n(gNB)" as gNBMAC
+    participant "PHY Entity\n(gNB)" as gNBPHY
+end box
+box "UE Nodes (Array)" #White
+    participant "nrUE" as UE
+    participant "TrafficMgr\n(UE)" as UETraf
+    participant "MAC Entity\n(UE)" as UEMAC
+    participant "PHY Entity\n(UE)" as UEPHY
+end box
+participant "Channel System\n(CDL & Custom)" as Chan
+participant "Loggers & Visualizers\n(Metrics)" as Log
+
+== PHASE 1: INITIALIZATION & CONFIGURATION ==
+
+User -> Script: Execute Script
+activate Script
+
+Script -> Sim: init()
+activate Sim
+Sim --> Script: networkSimulator instance
+deactivate Sim
+
+Script -> gNB: nrGNB(Position, DuplexMode="TDD", NumAntennas=32, ...)
+activate gNB
+gNB -> gNB: Validate Inputs (validateGNBInputs)
+gNB -> gNB: Calculate DL/UL Frequencies (TDD/FDD logic)
+gNB -> gNBTraf: create trafficManager()
+gNB -> gNBMAC: create nrGNBMAC()
+gNB -> gNB: configure SRS Reserved Resources & CSIRS
+gNB -> gNBPHY: create nrGNBFullPHY() / nrGNBAbstractPHY()
+gNB -> gNB: configureScheduler() (Default)
+gNB --> Script: gNB Object
+deactivate gNB
+
+Script -> gNB: configureScheduler(MUMIMOConfigDL, ProportionalFair)
+activate gNB
+gNB -> gNB: Validate MU-MIMO & Link Adaptation Inputs
+gNB -> gNB: Enable Type2 Report for CSI-RS
+gNB -> gNBMAC: addScheduler(nrScheduler)
+gNB --> Script:
+deactivate gNB
+
+Script -> UE: nrUE(Positions, NumAntennas=4, ...)
+activate UE
+UE -> UE: Determine numUEs from Position array length
+loop For each UE (1 to 10)
+    UE -> UETraf: create trafficManager()
+    UE -> UEMAC: create nrUEMAC()
+    UE -> UEPHY: create nrUEFullPHY() / nrUEAbstractPHY()
+end
+UE --> Script: Array of UE Objects
+deactivate UE
+
+Script -> gNB: connectUE(UEs, FullBufferTraffic="DL")
+activate gNB
+gNB -> gNB: Check SRS Capacity (maxUEWithSRSPeriodicity)
+loop For each UE
+    gNB -> gNB: allocate RNTI & create SRS/CSIRS Config
+    gNB -> gNBMAC: addConnection(macConnectionInfo)
+    gNB -> gNBPHY: addConnection(phyConnectionInfo)
+    gNB -> gNBMAC: Scheduler.addConnectionContext()
+    gNB -> gNB: addRLCBearer(FullBufferTraffic)
+    gNB -> UE: addConnection(connectionConfig)
+    activate UE
+    UE -> UEMAC: Setup UE MAC context
+    UE -> UEPHY: Setup UE PHY context
+    UE --> gNB: success
+    deactivate UE
+end
+gNB --> Script:
+deactivate gNB
+
+Script -> Sim: addNodes(gNB)
+activate Sim
+Sim -> Sim: Map gNB.ID to NodeIdxList
+Sim -> gNB: gNB.Simulator = Sim
+Sim --> Script:
+deactivate Sim
+
+Script -> Sim: addNodes(UEs)
+activate Sim
+loop For each UE
+    Sim -> Sim: Map UE.ID to NodeIdxList
+    Sim -> UE: UE.Simulator = Sim
+end
+Sim --> Script:
+deactivate Sim
+
+Script -> Chan: hNRCreateCDLChannels(CDL-D, gNB, UEs)
+activate Chan
+Chan -> Chan: Get SampleRate (nrOFDMInfo)
+loop For each UE
+    Chan -> Chan: hMakeCustomCDL() & Set Seed
+    Chan -> Chan: hArrayGeometry(Tx, Rx, "downlink")
+    Chan -> Chan: Compute LOS angles (rangeangle) & apply AoD/ZoD/AoA/ZoA
+    Chan -> Chan: Swap & Clone for Uplink channel
+end
+Chan --> Script: channels cell array
+deactivate Chan
+
+Script -> Chan: hNRCustomChannelModel(channels)
+activate Chan
+Chan -> Chan: Extract MaxDelayMatrix, PathFilters, LOS flag
+Chan --> Script: customChannelModel Object
+deactivate Chan
+
+Script -> Sim: addChannelModel(@customChannelModel.applyChannelModel)
+
+opt enableTraces = true
+    Script -> Log: helperNRSchedulingLogger()
+    activate Log
+    Log -> Log: Calculate Time/Slot metrics & Peak Data Rates
+    Log -> Sim: scheduleAction(@logCellSchedulingStats, periodicity)
+    Log -> UE: addlistener('PacketReceptionEnded')
+    Log -> gNB: addlistener('ScheduledResources')
+    Log --> Script: simSchedulingLogger
+    deactivate Log
+    
+    Script -> Log: helperNRPhyLogger()
+    activate Log
+    Log -> Sim: scheduleAction(@logCellPhyStats, periodicity)
+    Log --> Script: simPhyLogger
+    deactivate Log
+end
+
+Script -> Log: helperNRMetricsVisualizer()
+
+== PHASE 2: SIMULATION RUN LOOP ==
+
+Script -> Sim: run(simulationTime)
+activate Sim
+Sim -> Sim: ResetRequired = true, lastRunTime = 0
+
+loop While CurrentTime <= simulationDuration
+    
+    group 1. Execute Nodes (1 nanosecond precision)
+        loop For each node (gNB, UEs) in obj.Nodes
+            opt NodeNextInvokeTimes(nodeIdx) - CurrentTime < 1e-9
+                Sim -> gNB: run(CurrentTime) [or UE]
+                activate gNB
+                gNB -> gNB: Check ReceiveBufferIdx
+                
+                gNB -> gNB: runLayers(CurrentTime, packets)
+                activate gNB
+                
+                gNB -> gNBTraf: run(CurrentTime)
+                activate gNBTraf
+                loop TrafficSources ready
+                    gNBTraf -> gNBTraf: generate() packet data
+                    gNBTraf -> gNBTraf: Add "AppTimestamp" Tag
+                    gNBTraf -> gNBMAC: SendPacketFcn(packetInfo)
+                    gNBTraf -> gNBTraf: Update Statistics & NextInvokeTime
+                end
+                gNBTraf --> gNB: nextAppTime
+                deactivate gNBTraf
+                
+                gNB -> gNB: runRLCLayer() -> nextRLCTime
+                
+                gNB -> gNBMAC: run(CurrentTime, packets)
+                activate gNBMAC
+                gNBMAC -> gNBMAC: controlRx(packets)
+                gNBMAC -> gNBPHY: dataTx() [Send requests/PDUs to PHY]
+                gNBMAC -> gNBPHY: dataRx()
+                opt CurrentTime == SchedulerNextInvokeTime (Slot Boundary)
+                    gNBMAC -> gNBMAC: runULScheduler()
+                    gNBMAC -> gNBMAC: runDLScheduler() (MU-MIMO Pairing happens here)
+                    gNBMAC -> gNBMAC: controlTx(resourceAssignments)
+                end
+                opt CurrentTime matches CSI-RS / SRS Time
+                    gNBMAC -> gNBPHY: dlControlRequest() / ulControlRequest()
+                end
+                gNBMAC --> gNB: nextMACTime
+                deactivate gNBMAC
+                
+                gNB -> gNBPHY: run(CurrentTime, packets)
+                activate gNBPHY
+                gNBPHY -> gNBPHY: Update NFrame, NSlot, NSymbol
+                gNBPHY -> gNBPHY: phyTx(currTimeInfo) [Dispatch Transmissions]
+                gNBPHY -> gNBPHY: storeReception(packets) [Buffer Rx]
+                gNBPHY -> gNBPHY: phyRx(currTimeInfo) [Process Demodulation]
+                gNBPHY --> gNB: nextPHYTime
+                deactivate gNBPHY
+                
+                gNB -> gNB: min(nextApp, nextRLC, nextMAC, nextPHY) * 1e-9
+                deactivate gNB
+                gNB --> Sim: nextInvokeTime
+                deactivate gNB
+                
+                Sim -> Sim: recentlyRunNodesFlag(nodeIdx) = true
+            end
+        end
+    end
+    
+    group 2. Distribute Packets
+        Sim -> Sim: distributePackets(recentlyRanNodesIdx)
+        loop For each TxNode in recentlyRanNodes
+            Sim -> gNB: pullTransmittedData()
+            gNB --> Sim: txData
+            loop For each TxPacket in txData
+                opt DirectToDestination == 0 (Shared Channel)
+                    loop For each RxNode
+                        Sim -> UE: isPacketRelevant(TxPacket)
+                        UE --> Sim: flag, rxInfo
+                        opt flag == true
+                            Sim -> Chan: applyChannelModel(rxInfo, txPacket)
+                            activate Chan
+                            Chan -> Chan: nrPathLoss(Config, LOS, Positions) -> pathLoss
+                            Chan -> Chan: outputData.Power -= pathLoss
+                            opt ChannelModelMatrix exists
+                                Chan -> Chan: pass waveform through CDL channel
+                                Chan -> Chan: outputData.Data *= db2mag(-pathLoss)
+                            end
+                            Chan --> Sim: rxPacket
+                            deactivate Chan
+                            Sim -> UE: pushReceivedData(rxPacket)
+                            Sim -> Sim: NodeNextInvokeTimes(rxIdx) = CurrentTime
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    group 3. Process Scheduled Actions (Loggers)
+        Sim -> Sim: processActions(lastRunTime)
+        Sim -> Sim: processRemainingActions()
+        loop ActionInvokeTimes <= CurrentTime
+            Sim -> Log: CallbackFcn (e.g., logCellSchedulingStats)
+            activate Log
+            Log -> Log: Extract metrics (CQI, Grants, Throughput)
+            Log --> Sim:
+            deactivate Log
+            Sim -> Sim: Update ActionInvokeTime (+ Periodicity)
+            Sim -> Sim: sortActions()
+        end
+    end
+    
+    group 4. Advance Simulation Time
+        Sim -> Sim: nextInvokeTime()
+        Sim -> Sim: dt = min(nextNodeDt, nextActionTimes)
+        Sim -> Sim: lastRunTime = CurrentTime
+        Sim -> Sim: CurrentTime = round(dt, 9)
+    end
+end
+
+Sim -> Sim: CurrentTime = simulationDuration
+Sim --> Script: Simulation Complete
+deactivate Sim
+
+== PHASE 3: RESULTS ANALYSIS & POST-PROCESSING ==
+
+Script -> Log: displayPerformanceIndicators(metricsVisualizer)
+activate Log
+Log -> User: Show dynamic plots (Throughput, Spectral Eff, etc.)
+deactivate Log
+
+opt enableTraces = true
+    Script -> Log: getSchedulingLogs()
+    Script -> Log: getGrantLogs()
+    Script -> Log: getReceptionLogs()
+    Log --> Script: logInfo (Struct with all Traces)
+    
+    Script -> Script: save("simulationLogs", logInfo)
+    
+    Script -> Script: calculateAvgUEsPerRBDL()
+    Script -> Script: countPairedUEsPerRBDL()
+    Script -> Script: summarizeMuMimoPerSlot()
+    
+    Script -> Script: generate Tables and Statistics
+    
+    Script -> User: Plot 'Distribution of Avg UEs per RB' (Histogram)
+    Script -> User: Plot 'Count of RBs by Paired UE Count' (Bar Chart)
+end
+
+Script --> User: Execution Finished
+deactivate Script
+@enduml

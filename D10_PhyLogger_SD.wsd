@@ -1,0 +1,41 @@
+@startuml helperNRPhyLogger_Sequence
+skinparam monochrome true
+
+actor Caller
+participant "PhyLogger Object" as Logger
+participant "wirelessNetworkSimulator" as Simulator
+participant "gNB.MACEntity.Scheduler" as Scheduler
+
+Caller -> Logger: create(numFramesSim, gNB, UEs)
+activate Logger
+
+Logger -> Simulator: getInstance()
+activate Simulator
+Simulator --> Logger: networkSimulator instance
+deactivate Simulator
+
+Logger -> Logger: Store GNB, UEs, NCellID references
+
+Logger -> Scheduler: Get SchedulerConfig
+activate Scheduler
+Scheduler --> Logger: SchedulingType
+deactivate Scheduler
+
+Logger -> Logger: Initialize ColumnIndexMap, NumUEs, UEIdList
+Logger -> Logger: Calculate NumSlotsFrame (based on SubcarrierSpacing)
+
+Logger -> Logger: constructLogFormat(numFramesSim)
+note right of Logger: Pre-allocate memory for RxStatsLog
+
+Logger -> Logger: Initialize metrics matrices\n(UERxStats, GNBRxStats, BlockError trackers)
+
+Logger -> Logger: Calculate phyLogPeriodicity
+
+Logger -> Simulator: scheduleAction(@logCellPhyStats, phyLogPeriodicity)
+activate Simulator
+Simulator --> Logger: Event successfully scheduled
+deactivate Simulator
+
+Logger --> Caller: Configured simPhyLogger object
+deactivate Logger
+@enduml

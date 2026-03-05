@@ -1,0 +1,79 @@
+@startuml connectUE_Activity
+skinparam monochrome true
+start
+
+:Call connectUE(gNB, UEs, Name-Value pairs);
+
+:Validate Inputs\n(gNB is scalar, UEs is vector, LastRunTime is empty);
+
+if (Are N-V pairs valid?) then (No)
+    :Throw Error (invalidPVPairs);
+    stop
+else (Yes)
+endif
+
+:Calculate maximum allowed UEs based on SRS Periodicity;
+if (Total connected UEs > maxUEWithSRSPeriodicity?) then (Yes)
+    :Throw Error (InvalidNumUEWithSRSPeriodicityUE);
+    stop
+else (No)
+endif
+
+:Initialize base connectionConfigStruct;
+:Apply Name-Value pair arguments to connectionConfigList;
+
+if (Is CSIRSConfig provided?) then (Yes)
+    if (Is CSIRSConfig empty?) then (Yes)
+        if (Is CSIReportPeriodicity provided?) then (Yes)
+            :Throw Error (Cannot set Report Periodicity with disabled CSIRS);
+            stop
+        else (No)
+            :Disable CSI-RS (csirsConfig = []);
+        endif
+    else (No, Valid Config)
+        if (DuplexMode == "TDD"?) then (Yes)
+            :Validate CSIRSPeriod and Offset against TDD DL-UL pattern;
+        else (No)
+        endif
+        :Validate RowNumber against gNB NumTransmitAntennas;
+        :Set CSIRS Density and NID;
+    endif
+else (No, Not provided)
+    :Use default gNB.CSIRSConfiguration;
+endif
+
+while (For each ue in UEs array (1 to numUEs)?) is (Yes)
+    if (Is UE already connected?) then (Yes)
+        :Throw Error (AlreadyConnected);
+        stop
+    else (No)
+    endif
+    
+    if (Antenna mismatch OR PHY abstraction mismatch?) then (Yes)
+        :Throw Error;
+        stop
+    else (No)
+    endif
+    
+    :Allocate new RNTI = length(ConnectedUEs) + 1;
+    :Create UE-specific SRS Configuration\n(nrCreateSRSConfiguration);
+    
+    :Populate UE-specific connectionConfig\n(RNTI, UEID, UEName, Antennas, SRS/CSIRS config);
+    :Calculate InitialCQIDL from InitialMCSIndexDL;
+    :Validate connectionConfig (nrNodeValidation);
+    
+    :Update gNB tracking lists\n(ConnectedUEs, UENodeIDs, UENodeNames, SRSConfiguration);
+    
+    :gNB.MACEntity.addConnection(macConnectionInfo);
+    :gNB.PhyEntity.addConnection(phyConnectionInfo);
+    :gNB.MACEntity.Scheduler.addConnectionContext(schedulerConnectionInfo);
+    
+    :Extract RLC Info & set gNB.FullBufferTraffic(rnti);
+    :gNB.addRLCBearer(rlcConnectionInfo);
+    
+    :UE(i).addConnection(connectionConfig);
+    
+endwhile (No)
+
+stop
+@enduml

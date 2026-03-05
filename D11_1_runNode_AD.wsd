@@ -1,0 +1,29 @@
+@startuml run_Node_Activity
+skinparam monochrome true
+start
+
+:Call run(obj, currentTime);
+
+:Set obj.LastRunTime = currentTime;
+:Set obj.LastRunTimeInNanoseconds = round(currentTime * 1e9);
+
+if (obj.ReceiveBufferIdx ~= 0?) then (Yes)
+    note right: Rx buffer has data to process
+    
+    :Extract data: \n[obj.ReceiveBuffer{1:obj.ReceiveBufferIdx}];
+    
+    :nextInvokeTime = runLayers(obj, LastRunTimeInNanoseconds, data);
+    
+    :Reset obj.ReceiveBufferIdx = 0;
+    
+else (No)
+    note right: Rx buffer has no data
+    
+    :nextInvokeTime = runLayers(obj, LastRunTimeInNanoseconds, {});
+    
+endif
+
+:Return nextInvokeTime;
+
+stop
+@enduml

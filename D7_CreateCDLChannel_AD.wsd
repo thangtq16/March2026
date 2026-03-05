@@ -1,0 +1,61 @@
+@startuml hNRCreateCDLChannels_Activity
+skinparam monochrome true
+start
+
+:Call hNRCreateCDLChannels(channelConfig, gNB, UEs);
+
+:Initialize 'channels' cell array (numNodes x numNodes);
+
+:Get SampleRate via nrOFDMInfo\n(using gNB.NumResourceBlocks & SCS);
+
+:Create base cdlChannel (nrCDLChannel)\nwith CarrierFrequency and SampleRate;
+
+while (For each field in channelConfig?) is (Yes)
+    :Apply field value to cdlChannel;
+endwhile (No)
+
+:Set cdlChannel.TransmitAntennaArray.Element = 'isotropic';
+:Determine ChannelFiltering\n(Based on gNB.PHYAbstractionMethod);
+:Determine if isFDD = (gNB.DuplexMode == "FDD");
+
+while (For ueIdx = 1 to numUEs?) is (Yes)
+    
+    partition "Downlink (DL) Channel Setup" {
+        :dlChannel = hMakeCustomCDL(cdlChannel);
+        :Set independent Seed for fading (73 + ueIdx - 1);
+        :Apply Antenna Panel Geometry\nhArrayGeometry(..., "downlink");
+        
+        :Compute LOS departure angle (gNB to UE)\nvia rangeangle();
+        :Update dlChannel departure angles (AoD, ZoD);
+        
+        :Compute LOS arrival angle (UE to gNB)\nvia rangeangle();
+        :Update dlChannel arrival angles (AoA, ZoA);
+        
+        if (isFDD == true?) then (Yes)
+            :Set dlChannel.CarrierFrequency = gNB.DLCarrierFrequency;
+        else (No / TDD)
+        endif
+        
+        :Store dlChannel in channels{gNB.ID, UE.ID};
+    }
+    
+    partition "Uplink (UL) Channel Setup" {
+        :ulChannel = clone(dlChannel);
+        :ulChannel.swapTransmitAndReceive();
+        
+        :Apply Antenna Panel Geometry\nhArrayGeometry(..., "uplink");
+        
+        if (isFDD == true?) then (Yes)
+            :Set ulChannel.CarrierFrequency = gNB.ULCarrierFrequency;
+        else (No / TDD)
+        endif
+        
+        :Store ulChannel in channels{UE.ID, gNB.ID};
+    }
+
+endwhile (No)
+
+:Return configured 'channels' array;
+
+stop
+@enduml

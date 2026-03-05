@@ -1,0 +1,102 @@
+@startuml configureScheduler_Activity
+skinparam monochrome true
+start
+
+:Call configureScheduler(gNB, Name-Value pairs);
+
+if (Are N-V pairs valid?) then (No)
+    :Throw Error (invalidPVPairs);
+    stop
+else (Yes)
+endif
+
+:Validate object is nrGNB vector;
+
+if (Is LastRunTime not empty?) then (Yes)
+    :Throw Error (NotSupportedOperation);
+    stop
+else (No)
+endif
+
+if (Are there any Connected UEs?) then (Yes)
+    :Throw Error (ConfigSchedulerAfterConnectUE);
+    stop
+else (No)
+endif
+
+if (Has configureScheduler been called before?) then (Yes)
+    :Throw Error (MultipleConfigureSchedulerCalls);
+    stop
+else (No)
+endif
+
+:Initialize Default Scheduler Info Struct;
+:Set Default MUMIMO and LA Configurations;
+
+while (For each N-V pair argument?) is (Yes)
+    if (Name == "MUMIMOConfigDL"?) then (Yes)
+        :Check CSIMeasurementSignalDL;
+        if (CSIMeasurementSignalDL == "CSI-RS"?) then (Yes)
+            :Enable Type2 Report;
+        else (No)
+        endif
+        :Validate MUMIMOConfigDL inputs;
+        :Set gNB.MUMIMOEnabled = true;
+    elseif (Name == "LinkAdaptationConfigDL" / "UL"?) then (Yes)
+        :Validate LA Inputs;
+    elseif (Name == "CSIMeasurementSignalDL"?) then (Yes)
+        :Validate CSIMeasurementSignalDL input;
+    else (Other Parameters)
+        :Validate and Assign Parameter;
+        if (Name == "Scheduler" AND is Custom nrScheduler?) then (Yes)
+            :Set isCustomScheduler = true;
+            :Validate gNB is scalar;
+        elseif (Name == "RVSequence"?) then (Yes)
+            :Set gNB.RVSequence;
+        else (No)
+        endif
+    endif
+endwhile (No)
+
+if (LA Config AND FixedMCSIndex both provided?) then (Yes)
+    :Throw Error (InvalidLinkAdaptationConfig);
+    stop
+else (No)
+endif
+
+if (enableType2Report == true?) then (Yes)
+    :Set obj.CSIReportType = 2;
+else (No)
+endif
+
+if (isCustomScheduler?) then (Yes)
+    :Keep only relevant Custom Scheduler Config;
+else (No)
+    :Instantiate array of nrScheduler objects;
+end
+
+while (For each gNB in obj array?) is (Yes)
+    :Fetch required params from gNB\n(DuplexMode, NumRBs, NumAntennas, etc.);
+    
+    if (PHYAbstraction == "none" AND\nCSIMeasurementSignalDL == "SRS") then (Yes)
+        :Throw Error (InvalidSRSDLCSIFullPHY);
+        stop
+    else (No)
+    endif
+    
+    :Convert SCS to kHz;
+    :Get DMRSTypeAPosition from gNB MAC;
+    
+    :addScheduler(gNB.MACEntity, scheduler(nodeIdx));
+    :configureScheduler(scheduler(nodeIdx), schedulerInfo);
+    
+    if (PHYAbstraction == "none") then (Yes)
+        :Set gNB.PhyEntity.RVSequence = RVSequence;
+    else (No)
+    endif
+    
+    :Set gNB.SchedulerDefaultConfig = false;
+endwhile (No)
+
+stop
+@enduml

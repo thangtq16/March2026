@@ -1,0 +1,29 @@
+@startuml nextInvokeTime_Sequence
+skinparam monochrome true
+
+actor "Caller\n(Simulator run loop)" as Caller
+participant "Simulator\n(obj)" as Sim
+
+Caller -> Sim: nextInvokeTime()
+activate Sim
+
+alt NumNodes == 0
+    Sim -> Sim: nextNodeDt = inf
+else NumNodes > 0
+    Sim -> Sim: nextNodeDt = min(NodeNextInvokeTimes)
+end
+
+alt ActionInvokeTimes is NOT empty
+    Sim -> Sim: Filter ActionInvokeTimes\n(nextActionTimes != CurrentTime)
+    note right of Sim: Ignore actions that are currently\nbeing processed (Time == CurrentTime)
+    
+    Sim -> Sim: dt = min(nextActionTimes(1), nextNodeDt)
+    
+else ActionInvokeTimes is empty
+    Sim -> Sim: dt = nextNodeDt
+end
+
+Sim --> Caller: Return dt
+deactivate Sim
+
+@enduml

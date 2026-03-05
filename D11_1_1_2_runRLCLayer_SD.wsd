@@ -1,0 +1,28 @@
+@startuml runRLCLayer_Sequence
+skinparam monochrome true
+
+actor "Caller\n(runLayers)" as Caller
+participant "Node\n(obj)" as Node
+participant "RLCEntity{idx}" as RLC
+
+Caller -> Node: runRLCLayer(currentTime)
+activate Node
+
+Node -> Node: numRLCEntities = numel(obj.RLCEntity)
+Node -> Node: nextRLCTime = Inf
+
+loop For idx = 1 to numRLCEntities
+    Node -> RLC: run(currentTime)
+    activate RLC
+    note right of RLC: Execute timer-based actions\nfor this specific RLC entity
+    RLC --> Node: nextInvokeTime
+    deactivate RLC
+    
+    opt nextInvokeTime < nextRLCTime
+        Node -> Node: nextRLCTime = nextInvokeTime
+    end
+end
+
+Node --> Caller: Return nextRLCTime
+deactivate Node
+@enduml
