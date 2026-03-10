@@ -30,7 +30,12 @@ ueCSIMeasurementDLArray = [ueContext.CSIMeasurementDL];
 ueCSIMeasurementDL = [ueCSIMeasurementDLArray.CSIRS];
 if ~isreal(ueCSIMeasurementDL(end).W)
     W = [ueCSIMeasurementDL.W];
-    pOrth = abs(W'*W);
+    pOrthPages = abs(pagemtimes(pagectranspose(W), W));
+    if ndims(pOrthPages) > 2
+        pOrth = mean(pOrthPages, 3);
+    else
+        pOrth = pOrthPages;
+    end
     pOrth = pOrth/max(pOrth,[],'all');
     updatedUserPairingMatrix = pOrth <= 1-muMIMOConfigDL.SemiOrthogonalityFactor;
     usersRank = [ueCSIMeasurementDL.RI];

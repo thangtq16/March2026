@@ -2791,7 +2791,7 @@ classdef nrScheduler < handle & comm.internal.ConfigBase
                     W = (ones(numPorts, 1)./sqrt(numPorts)).';
                     rank = 1;
                 else
-                    W = report.W.';
+                    W = pagetranspose(report.W);
                     rank = report.RI;
                 end
             else
@@ -2803,9 +2803,19 @@ classdef nrScheduler < handle & comm.internal.ConfigBase
                 else
                     carrierContext = obj.UEContext(rnti).ComponentCarrier(carrierIndex);
                     numPRGs =  ceil(obj.CellConfig(carrierIndex).NumResourceBlocks/carrierContext.PrecodingGranularity);
-                    W = complex(zeros(rank, size(report.W,1), numPRGs,1));
-                    for i=1:numPRGs
-                        W(:,:,i) = report.W.';
+                    reportW = pagetranspose(report.W);
+                    if ndims(reportW) == 2
+                        W = repmat(reportW, 1, 1, numPRGs);
+                    else
+                        numSubbands = size(reportW, 3);
+                        if numSubbands == numPRGs
+                            W = reportW;
+                        elseif numSubbands == 1
+                            W = repmat(reportW, 1, 1, numPRGs);
+                        else
+                            subbandIdx = round(linspace(1, numSubbands, numPRGs));
+                            W = reportW(:,:,subbandIdx);
+                        end
                     end
                 end
             end

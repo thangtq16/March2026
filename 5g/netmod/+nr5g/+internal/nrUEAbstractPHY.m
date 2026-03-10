@@ -196,7 +196,7 @@ classdef nrUEAbstractPHY < nr5g.internal.nrUEPHY
             % For the given precoder prepare the LQM input
 
             [obj.L2SMCSI, sig] = nr5g.internal.L2SM.prepareLQMInput(obj.L2SMCSI, ...
-                carrierConfigInfo,csirsConfig,estChannelGrid,nVar,pmiInfo.W.');
+                carrierConfigInfo,csirsConfig,estChannelGrid,nVar,pagetranspose(pmiInfo.W));
             % Determine SINRs from Link Quality Model (LQM)
             [obj.L2SMCSI, sinr] = nr5g.internal.L2SM.linkQualityModel(obj.L2SMCSI,sig,intf);
             % CQI Selection
