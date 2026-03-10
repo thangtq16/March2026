@@ -270,7 +270,7 @@ classdef nrNodeValidation
                 csiReportConfig.RIRestriction = [1 1 1 1 0 0 0 0];
             else
                 % Applicable for CSI type-II report
-                csiReportConfig.CodebookType = 'Type2';
+                csiReportConfig.CodebookType = 'eType2';
                 % Added clause as mentioned in 3GPP TS 38.214 5.2.2.2.3
                 if (connConfig.CSIRSConfiguration.NumCSIRSPorts == 4)
                     csiReportConfig.NumberOfBeams = 2;
@@ -287,8 +287,10 @@ classdef nrNodeValidation
                 % Set wideband measurement CSI-RS configuration on the full bandwidth
                 csiReportConfig.NStartBWP = 0;
                 csiReportConfig.NSizeBWP = connConfig.NumResourceBlocks;
-                csiReportConfig.CQIMode = 'Wideband';
-                csiReportConfig.PMIMode = 'Wideband';
+                csiReportConfig.CQIMode = 'Subband';
+                csiReportConfig.PMIMode = 'Subband';
+                csiReportConfig.SubbandSize = 16;
+                csiReportConfig.NumberOfPMISubbandsPerCQISubband = 2;
                 csiReportConfig.PRGSize = [];
                 csiReportConfig.CodebookMode = 1;
                 csiReportConfig.CodebookSubsetRestriction = [];
@@ -523,7 +525,7 @@ classdef nrNodeValidation
                 % Validate fields
                 switch char(name)
                     case 'MaxNumUsersPaired'
-                        validateattributes(value, {'numeric'}, {'nonempty', 'scalar', 'integer', '>=', 2, '<=', 4}, 'MaxNumUsersPaired', 'MaxNumUsersPaired');
+                        validateattributes(value, {'numeric'}, {'nonempty', 'scalar', 'integer', '>=', 2, '<=', 8}, 'MaxNumUsersPaired', 'MaxNumUsersPaired');
                     case 'SemiOrthogonalityFactor'
                         validateattributes(value, {'numeric'}, {'nonempty', 'scalar', '>=', 0, '<=', 1}, 'SemiOrthogonalityFactor', 'SemiOrthogonalityFactor');
                     case 'MinNumRBs'
