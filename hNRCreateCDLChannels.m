@@ -27,7 +27,7 @@ function channels = hNRCreateCDLChannels(channelConfig, gNB, UEs)
     % including the delay profile (CDL-A, B, C, D, or E), delay spread, and
     % Doppler frequency.
     cdlChannel = nrCDLChannel(CarrierFrequency=gNB.CarrierFrequency, ...
-        TransmitArrayOrientation = [0 60 0]', SampleRate = sampleRate);
+        TransmitArrayOrientation = [0 12 0]', SampleRate = sampleRate);
     for fname=fieldnames(channelConfig)'
         cdlChannel.(fname{1})=channelConfig.(fname{1});
     end

@@ -1,16 +1,25 @@
 %% NR Cell Performance with Downlink MU-MIMO
+%% Custom Path Library
+custom_lib_path_5g = fullfile(pwd, '5g');
+custom_lib_path_wn = fullfile(pwd, 'wirelessnetwork');
+
+addpath(genpath(custom_lib_path_5g));
+addpath(genpath(custom_lib_path_wn));
+
+rehash toolboxcache;
+
 %% Initialize Simulation
 wirelessnetworkSupportPackageCheck
 
 rng("default")
-numFrameSimulation = 5;
+numFrameSimulation = 2;
 networkSimulator = wirelessNetworkSimulator.init;
 
 duplexType = "TDD";
 
 %% Configure gNB Node
 gNBPosition = [0 0 30];
-gNB = nrGNB(Position=gNBPosition, TransmitPower=25, SubcarrierSpacing=30000, ...
+gNB = nrGNB(Position=gNBPosition, TransmitPower=60, SubcarrierSpacing=30000, ...
     CarrierFrequency=3.7e9, ChannelBandwidth=100e6, NumTransmitAntennas=32, NumReceiveAntennas=32, ...
     DuplexMode=duplexType, ReceiveGain=11, SRSPeriodicityUE=5, NumResourceBlocks=273);
 
@@ -29,8 +38,9 @@ configureScheduler(gNB, Scheduler="ProportionalFair", ResourceAllocationType=all
 
 %% Define UE Positions and Deployment
 numUEs = 10;
-nearFieldLimit = 100;
-ueRelPosition = [rand(numUEs, 1)*(1000-nearFieldLimit)+nearFieldLimit (rand(numUEs, 1)-0.5)*120 zeros(numUEs, 1)];
+nearFieldLimit = 10;
+farFieldLimit = 100;
+ueRelPosition = [rand(numUEs, 1)*(farFieldLimit-nearFieldLimit)+nearFieldLimit (rand(numUEs, 1)-0.5)*120 zeros(numUEs, 1)];
 % ueRelPosition = [ones(numUEs, 1)*1000 (ones(numUEs, 1)-0.5)*120 zeros(numUEs, 1)];
 [xPos, yPos, zPos] = sph2cart(deg2rad(ueRelPosition(:, 2)), deg2rad(ueRelPosition(:, 3)), ...
     ueRelPosition(:, 1));
@@ -73,7 +83,7 @@ addNodes(networkSimulator, gNB)
 addNodes(networkSimulator, UEs)
 
 %% Channel Modeling
-channelConfig = struct(DelayProfile="CDL-D", DelaySpread=450e-9, MaximumDopplerShift=136);
+channelConfig = struct(DelayProfile="CDL-D", DelaySpread=450e-9, MaximumDopplerShift=5);
 channels = hNRCreateCDLChannels(channelConfig, gNB, UEs);
 
 customChannelModel  = hNRCustomChannelModel(channels);
@@ -298,6 +308,7 @@ hasMu = false(numOfSlots, 1);
 maxUePerRb = zeros(numOfSlots, 1);
 numMuRbs = zeros(numOfSlots, 1);
 maxMuLayers = zeros(numOfSlots, 1);
+maxLayersUsed = zeros(numOfSlots, 1);
 keepIdx = false(numOfSlots, 1);
 for slotIdx = 1:numOfSlots
     if strcmp(duplexMode, 'TDD') && ~isempty(typeCol)
@@ -335,14 +346,61 @@ for slotIdx = 1:numOfSlots
     maxUePerRb(slotIdx) = min(maxUe, maxPairs);
     hasMu(slotIdx) = maxUe >= 2;
     numMuRbs(slotIdx) = muRbs;
+    maxLayersUsed(slotIdx) = maxLayersUsedInSlot(logInfo, frameVal, slotVal);
     maxMuLayers(slotIdx) = maxMuMimoLayersInSlot(logInfo, numResourceBlocks, ...
         ratType, frameVal, slotVal, numRBsPerRBG);
     keepIdx(slotIdx) = true;
 end
 slotSummary = table(frames(keepIdx), slots(keepIdx), slotTypes(keepIdx), ...
     hasMu(keepIdx), maxUePerRb(keepIdx), numMuRbs(keepIdx), ...
-    maxMuLayers(keepIdx), 'VariableNames', {'Frame', 'Slot', 'SlotType', ...
-    'HasMuMimo', 'MaxUesPerRb', 'NumMuRbs', 'MaxMuMimoLayers'});
+    maxMuLayers(keepIdx), maxLayersUsed(keepIdx), 'VariableNames', ...
+    {'Frame', 'Slot', 'SlotType', 'HasMuMimo', 'MaxUesPerRb', 'NumMuRbs', ...
+    'MaxMuMimoLayers', 'MaxLayersUsed'});
+end
+
+function maxLayersUsed = maxLayersUsedInSlot(logInfo, frameVal, slotVal)
+grantLogs = logInfo.SchedulingAssignmentLogs;
+if isempty(grantLogs)
+    maxLayersUsed = 0;
+    return;
+end
+headers = grantLogs(1, :);
+frameCol = find(strcmp(headers, 'Frame'), 1);
+slotCol = find(strcmp(headers, 'Slot'), 1);
+grantTypeCol = find(strcmp(headers, 'Grant Type'), 1);
+numLayersCol = find(strcmp(headers, 'NumLayers'), 1);
+
+if isempty(frameCol) || isempty(slotCol) || isempty(grantTypeCol) || isempty(numLayersCol)
+    maxLayersUsed = 0;
+    return;
+end
+
+grantRows = grantLogs(2:end, :);
+isDl = strcmp(grantRows(:, grantTypeCol), 'DL');
+isFrame = cell2mat(grantRows(:, frameCol)) == frameVal;
+isSlot = cell2mat(grantRows(:, slotCol)) == slotVal;
+slotMask = isDl & isFrame & isSlot;
+if ~any(slotMask)
+    maxLayersUsed = 0;
+    return;
+end
+
+layerCells = grantRows(slotMask, numLayersCol);
+layerVals = zeros(numel(layerCells), 1);
+for idx = 1:numel(layerCells)
+    val = layerCells{idx};
+    if isempty(val) || ~isnumeric(val)
+        layerVals(idx) = NaN;
+    else
+        layerVals(idx) = val;
+    end
+end
+layerVals = layerVals(~isnan(layerVals) & layerVals > 0);
+if isempty(layerVals)
+    maxLayersUsed = 0;
+else
+    maxLayersUsed = max(layerVals);
+end
 end
 
 function maxMuLayers = maxMuMimoLayersInSlot(logInfo, numResourceBlocks, ratType, ...
